@@ -1,0 +1,102 @@
+{
+  "title": "智能体平台",
+  "menu": {
+    "dashboard": "概览",
+    "agents": "智能体管理",
+    "ontology": "本体管理",
+    "credentials": "凭证管理",
+    "sessions": "会话与调试",
+    "orchestration": "多智能体编排",
+    "integration": "集成中心"
+  },
+  "common": {
+    "create": "新建",
+    "edit": "编辑",
+    "delete": "删除",
+    "save": "保存",
+    "cancel": "取消",
+    "confirm": "确认",
+    "search": "搜索",
+    "refresh": "刷新",
+    "actions": "操作",
+    "name": "名称",
+    "description": "描述",
+    "status": "状态",
+    "createdAt": "创建时间",
+    "updatedAt": "更新时间",
+    "deleteConfirm": "确定要删除吗？此操作不可撤销。",
+    "empty": "暂无数据"
+  },
+  "agent": {
+    "name": "名称",
+    "systemPrompt": "系统提示词",
+    "model": "模型",
+    "newAgent": "新建智能体",
+    "editAgent": "编辑智能体",
+    "identity": "身份信息",
+    "contextConfig": "上下文配置",
+    "reactConfig": "推理配置",
+    "ontologyBinding": "本体绑定",
+    "bindOntology": "绑定本体",
+    "allowedObjectTypes": "可访问对象类型",
+    "allowedActions": "可执行动作",
+    "test": "调试",
+    "createSuccess": "智能体创建成功",
+    "updateSuccess": "智能体更新成功"
+  },
+  "ontology": {
+    "newOntology": "新建本体",
+    "objectTypes": "对象类型",
+    "linkTypes": "对象关系",
+    "actionTypes": "动作类型",
+    "objects": "对象实例",
+    "graph": "本体图谱",
+    "apiName": "API 名称",
+    "displayName": "显示名称",
+    "dataType": "数据类型",
+    "required": "必填",
+    "primaryKey": "主键",
+    "titleProperty": "标题属性",
+    "cardinality": "关系基数",
+    "source": "源对象类型",
+    "target": "目标对象类型",
+    "effect": "动作效果",
+    "properties": "属性",
+    "addProperty": "添加属性",
+    "newObjectType": "新建对象类型",
+    "newLinkType": "新建关系类型",
+    "newActionType": "新建动作类型",
+    "newObject": "新建对象",
+    "query": "语义查询",
+    "selectOntology": "请选择左侧本体"
+  },
+  "credential": {
+    "provider": "提供商",
+    "newCredential": "新建凭证",
+    "apiKey": "API Key"
+  },
+  "session": {
+    "playground": "调试台",
+    "selectAgent": "选择智能体",
+    "selectModel": "选择模型",
+    "send": "发送",
+    "inputPlaceholder": "输入消息，回车发送",
+    "newSession": "新建会话",
+    "noSession": "请先创建或选择会话"
+  },
+  "integration": {
+    "title": "集成中心",
+    "restApi": "REST API",
+    "curl": "cURL 示例",
+    "python": "Python SDK",
+    "copy": "复制",
+    "copied": "已复制"
+  },
+  "orchestration": {
+    "title": "多智能体编排",
+    "addNode": "添加节点",
+    "pipeline": "顺序流水线",
+    "save": "保存编排",
+    "run": "运行"
+  }
+}

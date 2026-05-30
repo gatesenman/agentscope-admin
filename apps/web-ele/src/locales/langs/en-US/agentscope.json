@@ -1,0 +1,102 @@
+{
+  "title": "Agent Platform",
+  "menu": {
+    "dashboard": "Overview",
+    "agents": "Agents",
+    "ontology": "Ontology",
+    "credentials": "Credentials",
+    "sessions": "Sessions & Debug",
+    "orchestration": "Orchestration",
+    "integration": "Integration"
+  },
+  "common": {
+    "create": "Create",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "search": "Search",
+    "refresh": "Refresh",
+    "actions": "Actions",
+    "name": "Name",
+    "description": "Description",
+    "status": "Status",
+    "createdAt": "Created At",
+    "updatedAt": "Updated At",
+    "deleteConfirm": "Are you sure to delete? This cannot be undone.",
+    "empty": "No data"
+  },
+  "agent": {
+    "name": "Name",
+    "systemPrompt": "System Prompt",
+    "model": "Model",
+    "newAgent": "New Agent",
+    "editAgent": "Edit Agent",
+    "identity": "Identity",
+    "contextConfig": "Context Config",
+    "reactConfig": "ReAct Config",
+    "ontologyBinding": "Ontology Binding",
+    "bindOntology": "Bind Ontology",
+    "allowedObjectTypes": "Allowed Object Types",
+    "allowedActions": "Allowed Actions",
+    "test": "Debug",
+    "createSuccess": "Agent created",
+    "updateSuccess": "Agent updated"
+  },
+  "ontology": {
+    "newOntology": "New Ontology",
+    "objectTypes": "Object Types",
+    "linkTypes": "Link Types",
+    "actionTypes": "Action Types",
+    "objects": "Objects",
+    "graph": "Graph",
+    "apiName": "API Name",
+    "displayName": "Display Name",
+    "dataType": "Data Type",
+    "required": "Required",
+    "primaryKey": "Primary Key",
+    "titleProperty": "Title Property",
+    "cardinality": "Cardinality",
+    "source": "Source Type",
+    "target": "Target Type",
+    "effect": "Effect",
+    "properties": "Properties",
+    "addProperty": "Add Property",
+    "newObjectType": "New Object Type",
+    "newLinkType": "New Link Type",
+    "newActionType": "New Action Type",
+    "newObject": "New Object",
+    "query": "Semantic Query",
+    "selectOntology": "Select an ontology on the left"
+  },
+  "credential": {
+    "provider": "Provider",
+    "newCredential": "New Credential",
+    "apiKey": "API Key"
+  },
+  "session": {
+    "playground": "Playground",
+    "selectAgent": "Select Agent",
+    "selectModel": "Select Model",
+    "send": "Send",
+    "inputPlaceholder": "Type a message, Enter to send",
+    "newSession": "New Session",
+    "noSession": "Create or select a session first"
+  },
+  "integration": {
+    "title": "Integration Center",
+    "restApi": "REST API",
+    "curl": "cURL Example",
+    "python": "Python SDK",
+    "copy": "Copy",
+    "copied": "Copied"
+  },
+  "orchestration": {
+    "title": "Multi-Agent Orchestration",
+    "addNode": "Add Node",
+    "pipeline": "Sequential Pipeline",
+    "save": "Save",
+    "run": "Run"
+  }
+}

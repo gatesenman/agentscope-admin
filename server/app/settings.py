@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = ["*"]
 
+    # Base URL the server uses to call its own AgentScope endpoints when
+    # proxying published-app chat traffic (session create + chat stream).
+    internal_base_url: str = "http://127.0.0.1:8000"
+
 
 @lru_cache
 def get_settings() -> Settings:

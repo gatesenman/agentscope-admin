@@ -23,6 +23,22 @@ const fallbackNotFoundRoute: RouteRecordRaw = {
 /** 基本路由，这些路由是必须存在的 */
 const coreRoutes: RouteRecordRaw[] = [
   /**
+   * 已发布智能体的公开 Web App（免登录，Dify 风格的托管对话页）。
+   * 通过 `meta.ignoreAccess` 跳过权限守卫，独立于 admin 布局。
+   */
+  {
+    name: 'PublicWebApp',
+    path: '/app/:token',
+    component: () => import('#/views/agentscope/webapp/index.vue'),
+    meta: {
+      hideInBreadcrumb: true,
+      hideInMenu: true,
+      hideInTab: true,
+      ignoreAccess: true,
+      title: 'App',
+    },
+  },
+  /**
    * 根路由
    * 使用基础布局，作为所有页面的父级容器，子级就不必配置BasicLayout。
    * 此路由必须存在，且不应修改

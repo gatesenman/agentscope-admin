@@ -8,7 +8,8 @@
     "sessions": "会话与调试",
     "orchestration": "多智能体编排",
     "integration": "集成中心",
-    "schedules": "定时任务"
+    "schedules": "定时任务",
+    "publish": "发布管理"
   },
   "common": {
     "create": "新建",
@@ -26,7 +27,9 @@
     "createdAt": "创建时间",
     "updatedAt": "更新时间",
     "deleteConfirm": "确定要删除吗？此操作不可撤销。",
-    "empty": "暂无数据"
+    "empty": "暂无数据",
+    "saveSuccess": "保存成功",
+    "deleteSuccess": "删除成功"
   },
   "agent": {
     "name": "名称",
@@ -134,5 +137,37 @@
     "cronHint": "标准 5 段 Cron，例如 0 9 * * * 表示每天 09:00",
     "required": "请填写名称、智能体与 Cron 表达式",
     "modelRequired": "请选择凭证与模型"
+  },
+  "publish": {
+    "title": "发布管理",
+    "publishAgent": "发布智能体",
+    "published": "已发布",
+    "selectAgent": "请选择要发布的智能体",
+    "empty": "还没有已发布的应用，点击右上角发布一个智能体",
+    "manage": "管理",
+    "unpublish": "下线",
+    "status": "状态",
+    "active": "启用",
+    "revoked": "已吊销",
+    "icon": "图标",
+    "appName": "应用名称",
+    "openingStatement": "开场白",
+    "suggestedQuestions": "建议问题",
+    "suggestedHint": "每行一个问题",
+    "overview": "概览",
+    "webApp": "Web 应用",
+    "webAppHint": "将下面的地址分享给用户，即可免登录直接对话",
+    "open": "打开",
+    "api": "API 接口",
+    "endpoint": "接口地址",
+    "apiKeys": "API 密钥",
+    "keyName": "密钥名称",
+    "createKey": "创建密钥",
+    "keyCreated": "密钥已创建（仅显示一次，请妥善保存）",
+    "copyKey": "复制密钥",
+    "revoke": "吊销",
+    "embed": "嵌入网站",
+    "iframe": "iframe 内嵌",
+    "bubble": "浮动聊天气泡"
   }
 }

@@ -22,6 +22,7 @@ def init_db() -> None:
     from . import models  # noqa: F401
     from ..agent_profile import models as _ap_models  # noqa: F401
     from ..preferences import models as _pref_models  # noqa: F401
+    from ..publish import models as _pub_models  # noqa: F401
 
     SQLModel.metadata.create_all(engine)
 

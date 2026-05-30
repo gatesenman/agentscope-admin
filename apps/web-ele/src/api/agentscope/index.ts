@@ -5,6 +5,7 @@ export * as credentialApi from './credential';
 export * as dashboardApi from './dashboard';
 export * as modelApi from './model';
 export * as ontologyApi from './ontology';
+export * as publishApi from './publish';
 export * from './request';
 export * as scheduleApi from './schedule';
 export * as sessionApi from './session';

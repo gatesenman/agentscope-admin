@@ -8,7 +8,8 @@
     "sessions": "Sessions & Debug",
     "orchestration": "Orchestration",
     "integration": "Integration",
-    "schedules": "Schedules"
+    "schedules": "Schedules",
+    "publish": "Publishing"
   },
   "common": {
     "create": "Create",
@@ -26,7 +27,9 @@
     "createdAt": "Created At",
     "updatedAt": "Updated At",
     "deleteConfirm": "Are you sure to delete? This cannot be undone.",
-    "empty": "No data"
+    "empty": "No data",
+    "saveSuccess": "Saved",
+    "deleteSuccess": "Deleted"
   },
   "agent": {
     "name": "Name",
@@ -134,5 +137,37 @@
     "cronHint": "Standard 5-field cron, e.g. 0 9 * * * = daily at 09:00",
     "required": "Name, agent and cron expression are required",
     "modelRequired": "Select a credential and model"
+  },
+  "publish": {
+    "title": "Publishing",
+    "publishAgent": "Publish Agent",
+    "published": "Published",
+    "selectAgent": "Select an agent to publish",
+    "empty": "No published apps yet. Click Publish Agent to create one.",
+    "manage": "Manage",
+    "unpublish": "Unpublish",
+    "status": "Status",
+    "active": "Active",
+    "revoked": "Revoked",
+    "icon": "Icon",
+    "appName": "App Name",
+    "openingStatement": "Opening Statement",
+    "suggestedQuestions": "Suggested Questions",
+    "suggestedHint": "One question per line",
+    "overview": "Overview",
+    "webApp": "Web App",
+    "webAppHint": "Share this URL with users for a login-free chat experience",
+    "open": "Open",
+    "api": "API",
+    "endpoint": "Endpoint",
+    "apiKeys": "API Keys",
+    "keyName": "Key name",
+    "createKey": "Create Key",
+    "keyCreated": "API key created (shown once, save it now)",
+    "copyKey": "Copy Key",
+    "revoke": "Revoke",
+    "embed": "Embed",
+    "iframe": "iframe Embed",
+    "bubble": "Chat Bubble"
   }
 }

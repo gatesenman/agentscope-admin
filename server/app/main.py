@@ -18,6 +18,7 @@ from .ontology.db import init_db
 from .ontology.router import router as ontology_router
 from .ontology.tools import ontology_tools_factory
 from .preferences.router import router as preferences_router
+from .publish.router import router as publish_router
 from .settings import get_settings
 
 
@@ -56,6 +57,7 @@ def build_app():
     app.include_router(auth_router)
     app.include_router(preferences_router)
     app.include_router(agent_profile_router)
+    app.include_router(publish_router)
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict:

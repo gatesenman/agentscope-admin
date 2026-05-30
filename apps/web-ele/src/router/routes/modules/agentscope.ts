@@ -77,6 +77,15 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        name: 'AgentScopePublish',
+        path: '/agentscope/publish',
+        component: () => import('#/views/agentscope/publish/index.vue'),
+        meta: {
+          icon: 'lucide:rocket',
+          title: $t('agentscope.menu.publish'),
+        },
+      },
+      {
         name: 'AgentScopeIntegration',
         path: '/agentscope/integration',
         component: () => import('#/views/agentscope/integration/index.vue'),

@@ -8,8 +8,9 @@ The frontend is built on [vue-vben-admin](https://github.com/vbenjs/vue-vben-adm
 
 - **Agent lifecycle** — create / edit / delete agents with schema-driven configuration (identity, context, ReAct), rendered dynamically from the backend's `GET /agent/schema`.
 - **Palantir-style ontology** — object types, properties, link types (relations), action types and object instances. Agents bind to an ontology and receive ontology tools (semantic query / traverse / execute action).
-- **Credentials & models** — manage LLM provider credentials (OpenAI / DashScope / Anthropic / …) and pick models per session.
-- **Playground** — chat with an agent over an SSE stream, with live tool-call and thinking traces.
+- **Model configuration (per agent)** — persistent default credential / model, generation parameters (temperature / top_p / max_tokens), a fallback model and a tool-execution **permission mode** (aligned with the Claude Agent SDK's `permission_mode`). See [docs/CONFIG-ALIGNMENT.md](docs/CONFIG-ALIGNMENT.md).
+- **Credentials & models** — manage LLM provider credentials (OpenAI / DashScope / DeepSeek / Anthropic / …) and pick models per session.
+- **Playground** — chat with an agent over an SSE stream, with live tool-call and thinking traces; auto-prefills the agent's saved model defaults and permission mode.
 - **Multi-agent orchestration** — sequential pipelines chaining agents' outputs.
 - **Integration center** — ready-to-copy cURL / Python snippets for embedding the API.
 - **Dashboard** — aggregate stats across agents, credentials, sessions and the ontology.
@@ -35,18 +36,29 @@ AgentScope state (agents, sessions, credentials) is persisted via its built-in `
 - Python `3.12`
 - Redis running locally on `:6379`
 
-## Backend
+## Quick start (one command)
+
+```bash
+./start-dev.sh           # backend (:8000) + frontend (:5777)
+./start-dev.sh --seed    # also seed the enterprise-risk ontology first
+```
+
+The script creates the Python venv, installs backend + frontend deps on first run, checks Redis, then launches both servers and tears them down on Ctrl-C.
+
+## Backend (manual)
 
 ```bash
 cd server
+./start.sh               # venv + deps + Redis check + uvicorn (reload)
+# or, fully manual:
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-The API is then available at `http://localhost:8000` (`/health`, `/docs`).
+The API is then available at `http://localhost:8000` (`/health`, `/docs`). Seed the demo ontology with `cd server && ./seed.sh`.
 
-## Frontend
+## Frontend (manual)
 
 ```bash
 pnpm install

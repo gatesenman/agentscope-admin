@@ -42,7 +42,29 @@
     "allowedActions": "Allowed Actions",
     "test": "Debug",
     "createSuccess": "Agent created",
-    "updateSuccess": "Agent updated"
+    "updateSuccess": "Agent updated",
+    "modelConfig": "Model Config",
+    "defaultCredential": "Default Credential",
+    "defaultModel": "Default Model",
+    "temperature": "Temperature",
+    "topP": "Top P",
+    "maxTokens": "Max Tokens",
+    "stream": "Stream",
+    "fallback": "Fallback Model",
+    "fallbackCredential": "Fallback Credential",
+    "fallbackModel": "Fallback Model",
+    "tags": "Tags",
+    "modelHint": "New playground sessions will use this default model and parameters",
+    "selectCredentialFirst": "Select a credential first",
+    "profileSaved": "Model config saved",
+    "permissionMode": "Permission Mode",
+    "permission": {
+      "default": "Default (ask on risky ops)",
+      "accept_edits": "Accept Edits",
+      "explore": "Explore (read-only)",
+      "bypass": "Bypass (sandbox)",
+      "dont_ask": "Don't Ask (unattended)"
+    }
   },
   "ontology": {
     "newOntology": "New Ontology",

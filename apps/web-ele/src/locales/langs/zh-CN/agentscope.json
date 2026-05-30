@@ -42,7 +42,29 @@
     "allowedActions": "可执行动作",
     "test": "调试",
     "createSuccess": "智能体创建成功",
-    "updateSuccess": "智能体更新成功"
+    "updateSuccess": "智能体更新成功",
+    "modelConfig": "模型配置",
+    "defaultCredential": "默认凭证",
+    "defaultModel": "默认模型",
+    "temperature": "温度 (temperature)",
+    "topP": "核采样 (top_p)",
+    "maxTokens": "最大输出 Tokens",
+    "stream": "流式输出",
+    "fallback": "兜底模型",
+    "fallbackCredential": "兜底凭证",
+    "fallbackModel": "兜底模型",
+    "tags": "标签",
+    "modelHint": "在调试台新建会话时会自动使用该默认模型与参数",
+    "selectCredentialFirst": "请先选择凭证",
+    "profileSaved": "模型配置已保存",
+    "permissionMode": "权限模式",
+    "permission": {
+      "default": "默认（危险操作需确认）",
+      "accept_edits": "自动接受编辑",
+      "explore": "只读探索",
+      "bypass": "全部放行（沙箱）",
+      "dont_ask": "不询问（后台/无人值守）"
+    }
   },
   "ontology": {
     "newOntology": "新建本体",

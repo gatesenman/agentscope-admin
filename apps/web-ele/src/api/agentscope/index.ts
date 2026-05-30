@@ -1,4 +1,5 @@
 export * as agentApi from './agent';
+export * as agentProfileApi from './agentProfile';
 export * as chatApi from './chat';
 export * as credentialApi from './credential';
 export * as dashboardApi from './dashboard';

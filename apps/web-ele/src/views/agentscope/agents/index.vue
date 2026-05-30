@@ -1,8 +1,11 @@
 <script lang="ts" setup>
 import type {
+  AgentProfile,
   AgentRecord,
   AgentSchemaResponse,
+  CredentialRecord,
   JsonSchema,
+  ModelCard,
   ObjectType,
   Ontology,
 } from '#/api/agentscope';
@@ -14,9 +17,12 @@ import { Page } from '@vben/common-ui';
 import {
   ElButton,
   ElCard,
+  ElDivider,
   ElDrawer,
   ElForm,
   ElFormItem,
+  ElInput,
+  ElInputNumber,
   ElMessage,
   ElMessageBox,
   ElOption,
@@ -29,7 +35,13 @@ import {
   ElTabs,
 } from 'element-plus';
 
-import { agentApi, ontologyApi } from '#/api/agentscope';
+import {
+  agentApi,
+  agentProfileApi,
+  credentialApi,
+  modelApi,
+  ontologyApi,
+} from '#/api/agentscope';
 import SchemaForm from '#/components/agentscope/SchemaForm.vue';
 import { $t } from '#/locales';
 
@@ -57,6 +69,63 @@ const binding = reactive({
   allowed_actions: [] as string[],
 });
 const bindingObjectTypes = ref<ObjectType[]>([]);
+
+const credentials = ref<CredentialRecord[]>([]);
+const defaultModels = ref<ModelCard[]>([]);
+const fallbackModels = ref<ModelCard[]>([]);
+const profile = reactive({
+  default_credential_id: '',
+  default_model: '',
+  parameters: {
+    temperature: undefined as number | undefined,
+    top_p: undefined as number | undefined,
+    max_tokens: undefined as number | undefined,
+  },
+  fallback_credential_id: '',
+  fallback_model: '',
+  stream: true,
+  permission_mode: 'default',
+  description: '',
+  tags: [] as string[],
+});
+
+const permissionModes = [
+  'default',
+  'accept_edits',
+  'explore',
+  'bypass',
+  'dont_ask',
+];
+
+function credentialType(id: string): string {
+  return credentials.value.find((c) => c.id === id)?.data?.type ?? '';
+}
+
+async function loadModelsFor(
+  credentialId: string,
+  target: 'default' | 'fallback',
+) {
+  const list = target === 'default' ? defaultModels : fallbackModels;
+  list.value = [];
+  const type = credentialType(credentialId);
+  if (!type) return;
+  try {
+    const res = await modelApi.listModels(type);
+    list.value = res.models ?? [];
+  } catch {
+    // provider may not support listing; manual entry still allowed
+  }
+}
+
+function onDefaultCredentialChange(id: string) {
+  profile.default_model = '';
+  void loadModelsFor(id, 'default');
+}
+
+function onFallbackCredentialChange(id: string) {
+  profile.fallback_model = '';
+  void loadModelsFor(id, 'fallback');
+}
 
 const identitySchema = computed<JsonSchema>(
   () => schema.value?.identity ?? { properties: {} },
@@ -86,8 +155,12 @@ async function loadAgents() {
 
 async function loadMeta() {
   schema.value = await agentApi.getAgentSchema();
-  const res = await ontologyApi.listOntologies();
-  ontologies.value = res.items ?? [];
+  const [ont, creds] = await Promise.all([
+    ontologyApi.listOntologies(),
+    credentialApi.listCredentials(),
+  ]);
+  ontologies.value = ont.items ?? [];
+  credentials.value = creds.credentials ?? [];
 }
 
 function resetForm() {
@@ -101,6 +174,41 @@ function resetForm() {
   binding.allowed_object_types = [];
   binding.allowed_actions = [];
   bindingObjectTypes.value = [];
+  profile.default_credential_id = '';
+  profile.default_model = '';
+  profile.parameters = {
+    temperature: undefined,
+    top_p: undefined,
+    max_tokens: undefined,
+  };
+  profile.fallback_credential_id = '';
+  profile.fallback_model = '';
+  profile.stream = true;
+  profile.permission_mode = 'default';
+  profile.description = '';
+  profile.tags = [];
+  defaultModels.value = [];
+  fallbackModels.value = [];
+}
+
+function applyProfile(p: AgentProfile) {
+  profile.default_credential_id = p.default_credential_id ?? '';
+  profile.default_model = p.default_model ?? '';
+  profile.parameters = {
+    temperature: p.parameters?.temperature,
+    top_p: p.parameters?.top_p,
+    max_tokens: p.parameters?.max_tokens,
+  };
+  profile.fallback_credential_id = p.fallback_credential_id ?? '';
+  profile.fallback_model = p.fallback_model ?? '';
+  profile.stream = p.stream ?? true;
+  profile.permission_mode = p.permission_mode ?? 'default';
+  profile.description = p.description ?? '';
+  profile.tags = p.tags ?? [];
+  if (profile.default_credential_id)
+    void loadModelsFor(profile.default_credential_id, 'default');
+  if (profile.fallback_credential_id)
+    void loadModelsFor(profile.fallback_credential_id, 'fallback');
 }
 
 function openCreate() {
@@ -129,6 +237,9 @@ function openEdit(row: AgentRecord) {
       binding.allowed_actions = b.allowed_actions ?? [];
       void onOntologyChange(b.ontology_id);
     }
+  });
+  void agentProfileApi.getProfile(row.id).then((p) => {
+    if (p) applyProfile(p);
   });
 }
 
@@ -169,6 +280,28 @@ async function save() {
         enabled: binding.enabled,
         allowed_object_types: binding.allowed_object_types,
         allowed_actions: binding.allowed_actions,
+      });
+    }
+    if (agentId && profile.default_credential_id) {
+      const params: Record<string, number> = {};
+      if (profile.parameters.temperature !== undefined)
+        params.temperature = profile.parameters.temperature;
+      if (profile.parameters.top_p !== undefined)
+        params.top_p = profile.parameters.top_p;
+      if (profile.parameters.max_tokens !== undefined)
+        params.max_tokens = profile.parameters.max_tokens;
+      await agentProfileApi.putProfile(agentId, {
+        default_provider: credentialType(profile.default_credential_id),
+        default_credential_id: profile.default_credential_id,
+        default_model: profile.default_model,
+        parameters: params,
+        fallback_provider: credentialType(profile.fallback_credential_id),
+        fallback_credential_id: profile.fallback_credential_id || null,
+        fallback_model: profile.fallback_model || null,
+        stream: profile.stream,
+        permission_mode: profile.permission_mode,
+        description: profile.description,
+        tags: profile.tags,
       });
     }
     drawerVisible.value = false;
@@ -276,6 +409,133 @@ void ElMessageBox;
               v-model="form.react_config"
               :schema="schema.react_config"
             />
+          </ElTabPane>
+          <ElTabPane :label="$t('agentscope.agent.modelConfig')" name="model">
+            <p class="text-foreground/50 mb-3 text-xs">
+              {{ $t('agentscope.agent.modelHint') }}
+            </p>
+            <ElFormItem :label="$t('agentscope.agent.defaultCredential')">
+              <ElSelect
+                v-model="profile.default_credential_id"
+                class="w-full"
+                clearable
+                @change="onDefaultCredentialChange"
+              >
+                <ElOption
+                  v-for="c in credentials"
+                  :key="c.id"
+                  :label="`${c.data.type} · ${c.id.slice(0, 8)}`"
+                  :value="c.id"
+                />
+              </ElSelect>
+            </ElFormItem>
+            <ElFormItem :label="$t('agentscope.agent.defaultModel')">
+              <ElSelect
+                v-model="profile.default_model"
+                allow-create
+                class="w-full"
+                clearable
+                filterable
+                :disabled="!profile.default_credential_id"
+              >
+                <ElOption
+                  v-for="m in defaultModels"
+                  :key="m.name"
+                  :label="m.label || m.name"
+                  :value="m.name"
+                />
+              </ElSelect>
+            </ElFormItem>
+            <ElFormItem :label="$t('agentscope.agent.temperature')">
+              <ElInputNumber
+                v-model="profile.parameters.temperature"
+                :max="2"
+                :min="0"
+                :step="0.1"
+                class="w-full"
+              />
+            </ElFormItem>
+            <ElFormItem :label="$t('agentscope.agent.topP')">
+              <ElInputNumber
+                v-model="profile.parameters.top_p"
+                :max="1"
+                :min="0"
+                :step="0.05"
+                class="w-full"
+              />
+            </ElFormItem>
+            <ElFormItem :label="$t('agentscope.agent.maxTokens')">
+              <ElInputNumber
+                v-model="profile.parameters.max_tokens"
+                :min="1"
+                :step="256"
+                class="w-full"
+              />
+            </ElFormItem>
+            <ElFormItem :label="$t('agentscope.agent.stream')">
+              <ElSwitch v-model="profile.stream" />
+            </ElFormItem>
+            <ElFormItem :label="$t('agentscope.agent.permissionMode')">
+              <ElSelect v-model="profile.permission_mode" class="w-full">
+                <ElOption
+                  v-for="pm in permissionModes"
+                  :key="pm"
+                  :label="$t(`agentscope.agent.permission.${pm}`)"
+                  :value="pm"
+                />
+              </ElSelect>
+            </ElFormItem>
+            <ElDivider>{{ $t('agentscope.agent.fallback') }}</ElDivider>
+            <ElFormItem :label="$t('agentscope.agent.fallbackCredential')">
+              <ElSelect
+                v-model="profile.fallback_credential_id"
+                class="w-full"
+                clearable
+                @change="onFallbackCredentialChange"
+              >
+                <ElOption
+                  v-for="c in credentials"
+                  :key="c.id"
+                  :label="`${c.data.type} · ${c.id.slice(0, 8)}`"
+                  :value="c.id"
+                />
+              </ElSelect>
+            </ElFormItem>
+            <ElFormItem :label="$t('agentscope.agent.fallbackModel')">
+              <ElSelect
+                v-model="profile.fallback_model"
+                allow-create
+                class="w-full"
+                clearable
+                filterable
+                :disabled="!profile.fallback_credential_id"
+              >
+                <ElOption
+                  v-for="m in fallbackModels"
+                  :key="m.name"
+                  :label="m.label || m.name"
+                  :value="m.name"
+                />
+              </ElSelect>
+            </ElFormItem>
+            <ElDivider />
+            <ElFormItem :label="$t('agentscope.common.description')">
+              <ElInput
+                v-model="profile.description"
+                :rows="2"
+                type="textarea"
+              />
+            </ElFormItem>
+            <ElFormItem :label="$t('agentscope.agent.tags')">
+              <ElSelect
+                v-model="profile.tags"
+                allow-create
+                class="w-full"
+                filterable
+                multiple
+                :reserve-keyword="false"
+              />
+            </ElFormItem>
           </ElTabPane>
           <ElTabPane
             :label="$t('agentscope.agent.ontologyBinding')"

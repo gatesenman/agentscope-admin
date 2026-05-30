@@ -49,6 +49,22 @@ export interface CredentialRecord {
   updated_at: string;
 }
 
+export interface AgentProfile {
+  agent_id: string;
+  default_provider?: null | string;
+  default_credential_id?: null | string;
+  default_model?: null | string;
+  parameters: Record<string, any>;
+  fallback_provider?: null | string;
+  fallback_credential_id?: null | string;
+  fallback_model?: null | string;
+  stream: boolean;
+  permission_mode: string;
+  description: string;
+  tags: string[];
+  updated_at?: string;
+}
+
 export interface ModelCard {
   type: string;
   name: string;

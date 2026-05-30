@@ -28,6 +28,25 @@ export function createSession(payload: CreateSessionPayload) {
   return agentScopeClient.post<{ session_id: string }>('/sessions/', payload);
 }
 
+export interface UpdateSessionPayload {
+  name?: string;
+  chat_model_config?: ChatModelConfig | null;
+  fallback_chat_model_config?: ChatModelConfig | null;
+  permission_mode?: string;
+}
+
+export function updateSession(
+  sessionId: string,
+  agentId: string,
+  payload: UpdateSessionPayload,
+) {
+  return agentScopeClient.request(`/sessions/${sessionId}`, {
+    method: 'PATCH',
+    params: { agent_id: agentId },
+    data: payload,
+  });
+}
+
 export function deleteSession(sessionId: string, agentId: string) {
   return agentScopeClient.delete(`/sessions/${sessionId}`, {
     params: { agent_id: agentId },

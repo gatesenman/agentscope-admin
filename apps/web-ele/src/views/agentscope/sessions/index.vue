@@ -5,7 +5,7 @@ import type {
   ModelCard,
 } from '#/api/agentscope';
 
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -14,6 +14,7 @@ import {
   ElCard,
   ElEmpty,
   ElInput,
+  ElInputNumber,
   ElMessage,
   ElOption,
   ElScrollbar,
@@ -23,6 +24,7 @@ import {
 
 import {
   agentApi,
+  agentProfileApi,
   chatApi,
   credentialApi,
   modelApi,
@@ -53,6 +55,25 @@ const agentId = ref('');
 const credentialId = ref('');
 const modelName = ref('');
 const sessionId = ref('');
+
+const modelParams = reactive<{
+  max_tokens?: number;
+  temperature?: number;
+  top_p?: number;
+}>({});
+const fallbackConfig = ref<null | {
+  credential_id: string;
+  model: string;
+  type: string;
+}>(null);
+const permissionMode = ref('default');
+const permissionModes = [
+  'default',
+  'accept_edits',
+  'explore',
+  'bypass',
+  'dont_ask',
+];
 
 const input = ref('');
 const sending = ref(false);
@@ -91,6 +112,31 @@ async function loadModels() {
 
 watch(credentialId, loadModels);
 
+// When the selected agent changes, prefill model + parameters from its
+// saved profile (the agent-level model defaults configured in the admin).
+async function applyAgentProfile(id: string) {
+  if (!id) return;
+  const p = await agentProfileApi.getProfile(id);
+  if (!p) return;
+  if (p.default_credential_id) credentialId.value = p.default_credential_id;
+  await loadModels();
+  if (p.default_model) modelName.value = p.default_model;
+  modelParams.temperature = p.parameters?.temperature;
+  modelParams.top_p = p.parameters?.top_p;
+  modelParams.max_tokens = p.parameters?.max_tokens;
+  permissionMode.value = p.permission_mode ?? 'default';
+  fallbackConfig.value =
+    p.fallback_credential_id && p.fallback_model
+      ? {
+          type: p.fallback_provider ?? '',
+          credential_id: p.fallback_credential_id,
+          model: p.fallback_model,
+        }
+      : null;
+}
+
+watch(agentId, applyAgentProfile);
+
 async function ensureSession() {
   if (sessionId.value) return sessionId.value;
   if (!agentId.value) {
@@ -98,6 +144,12 @@ async function ensureSession() {
     return '';
   }
   const cred = selectedCredential.value;
+  const parameters: Record<string, number> = {};
+  if (modelParams.temperature !== undefined)
+    parameters.temperature = modelParams.temperature;
+  if (modelParams.top_p !== undefined) parameters.top_p = modelParams.top_p;
+  if (modelParams.max_tokens !== undefined)
+    parameters.max_tokens = modelParams.max_tokens;
   const res = await sessionApi.createSession({
     agent_id: agentId.value,
     name: `Playground ${new Date().toLocaleString()}`,
@@ -107,11 +159,26 @@ async function ensureSession() {
             type: cred.data.type,
             credential_id: cred.id,
             model: modelName.value,
-            parameters: {},
+            parameters,
           }
         : undefined,
+    fallback_chat_model_config: fallbackConfig.value
+      ? {
+          type: fallbackConfig.value.type,
+          credential_id: fallbackConfig.value.credential_id,
+          model: fallbackConfig.value.model,
+          parameters,
+        }
+      : undefined,
   });
   sessionId.value = res.session_id;
+  // Apply the tool-execution permission mode (set via PATCH; not accepted
+  // by the create endpoint).
+  if (permissionMode.value && permissionMode.value !== 'default') {
+    await sessionApi.updateSession(sessionId.value, agentId.value, {
+      permission_mode: permissionMode.value,
+    });
+  }
   return sessionId.value;
 }
 
@@ -193,6 +260,7 @@ function newSession() {
 onMounted(async () => {
   await loadBase();
   await loadModels();
+  await applyAgentProfile(agentId.value);
 });
 </script>
 
@@ -243,6 +311,42 @@ onMounted(async () => {
                 :key="m.name"
                 :label="m.name"
                 :value="m.name"
+              />
+            </ElSelect>
+          </div>
+          <div>
+            <div class="mb-1 text-sm font-medium">
+              {{ $t('agentscope.agent.temperature') }}
+            </div>
+            <ElInputNumber
+              v-model="modelParams.temperature"
+              :max="2"
+              :min="0"
+              :step="0.1"
+              class="w-full"
+            />
+          </div>
+          <div>
+            <div class="mb-1 text-sm font-medium">
+              {{ $t('agentscope.agent.maxTokens') }}
+            </div>
+            <ElInputNumber
+              v-model="modelParams.max_tokens"
+              :min="1"
+              :step="256"
+              class="w-full"
+            />
+          </div>
+          <div>
+            <div class="mb-1 text-sm font-medium">
+              {{ $t('agentscope.agent.permissionMode') }}
+            </div>
+            <ElSelect v-model="permissionMode" class="w-full">
+              <ElOption
+                v-for="pm in permissionModes"
+                :key="pm"
+                :label="$t(`agentscope.agent.permission.${pm}`)"
+                :value="pm"
               />
             </ElSelect>
           </div>

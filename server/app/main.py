@@ -11,6 +11,7 @@ from agentscope.app._manager import LocalWorkspaceManager
 from agentscope.app.storage import RedisStorage
 from fastapi.middleware.cors import CORSMiddleware
 
+from .agent_profile.router import router as agent_profile_router
 from .compat_auth.router import router as auth_router
 from .dashboard.router import router as dashboard_router
 from .ontology.db import init_db
@@ -54,6 +55,7 @@ def build_app():
     app.include_router(dashboard_router)
     app.include_router(auth_router)
     app.include_router(preferences_router)
+    app.include_router(agent_profile_router)
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict:

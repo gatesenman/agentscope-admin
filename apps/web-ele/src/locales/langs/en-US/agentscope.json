@@ -7,7 +7,8 @@
     "credentials": "Credentials",
     "sessions": "Sessions & Debug",
     "orchestration": "Orchestration",
-    "integration": "Integration"
+    "integration": "Integration",
+    "schedules": "Schedules"
   },
   "common": {
     "create": "Create",
@@ -120,5 +121,18 @@
     "pipeline": "Sequential Pipeline",
     "save": "Save",
     "run": "Run"
+  },
+  "schedule": {
+    "newSchedule": "New Schedule",
+    "agent": "Agent",
+    "cron": "Cron",
+    "timezone": "Timezone",
+    "enabled": "Enabled",
+    "stateful": "Stateful",
+    "statefulHint": "Share session memory across runs",
+    "description": "Description",
+    "cronHint": "Standard 5-field cron, e.g. 0 9 * * * = daily at 09:00",
+    "required": "Name, agent and cron expression are required",
+    "modelRequired": "Select a credential and model"
   }
 }

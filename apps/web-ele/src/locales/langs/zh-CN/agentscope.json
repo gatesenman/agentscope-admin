@@ -7,7 +7,8 @@
     "credentials": "凭证管理",
     "sessions": "会话与调试",
     "orchestration": "多智能体编排",
-    "integration": "集成中心"
+    "integration": "集成中心",
+    "schedules": "定时任务"
   },
   "common": {
     "create": "新建",
@@ -120,5 +121,18 @@
     "pipeline": "顺序流水线",
     "save": "保存编排",
     "run": "运行"
+  },
+  "schedule": {
+    "newSchedule": "新建定时任务",
+    "agent": "智能体",
+    "cron": "Cron 表达式",
+    "timezone": "时区",
+    "enabled": "启用",
+    "stateful": "保留上下文",
+    "statefulHint": "跨次运行共享会话记忆",
+    "description": "描述",
+    "cronHint": "标准 5 段 Cron，例如 0 9 * * * 表示每天 09:00",
+    "required": "请填写名称、智能体与 Cron 表达式",
+    "modelRequired": "请选择凭证与模型"
   }
 }

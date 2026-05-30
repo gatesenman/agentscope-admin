@@ -59,6 +59,15 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        name: 'AgentScopeSchedules',
+        path: '/agentscope/schedules',
+        component: () => import('#/views/agentscope/schedules/index.vue'),
+        meta: {
+          icon: 'lucide:calendar-clock',
+          title: $t('agentscope.menu.schedules'),
+        },
+      },
+      {
         name: 'AgentScopeOrchestration',
         path: '/agentscope/orchestration',
         component: () => import('#/views/agentscope/orchestration/index.vue'),

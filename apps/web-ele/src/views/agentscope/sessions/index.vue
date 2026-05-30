@@ -107,6 +107,7 @@ async function ensureSession() {
             type: cred.data.type,
             credential_id: cred.id,
             model: modelName.value,
+            parameters: {},
           }
         : undefined,
   });

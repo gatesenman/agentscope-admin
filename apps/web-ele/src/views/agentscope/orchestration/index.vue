@@ -108,6 +108,7 @@ async function runOne(step: PipelineStep, text: string): Promise<string> {
             type: cred.data.type,
             credential_id: cred.id,
             model: modelName.value,
+            parameters: {},
           }
         : undefined,
   });

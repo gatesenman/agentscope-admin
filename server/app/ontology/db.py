@@ -20,6 +20,7 @@ def init_db() -> None:
     """Create all ontology tables."""
     # Import models so they register with SQLModel metadata.
     from . import models  # noqa: F401
+    from ..preferences import models as _pref_models  # noqa: F401
 
     SQLModel.metadata.create_all(engine)
 

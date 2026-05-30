@@ -119,6 +119,7 @@ def create_object_type(ontology_id: str, body: ObjectTypeCreate, session: Sessio
     for prop in body.properties:
         session.add(PropertyType(object_type_id=ot.id, **prop.model_dump()))
     session.commit()
+    session.refresh(ot)
     return _serialize_object_type(session, ot)
 
 

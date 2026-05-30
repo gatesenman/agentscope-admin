@@ -10,9 +10,9 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from agentscope.message import TextBlock
+from agentscope.message import TextBlock, ToolResultState
 from agentscope.permission import PermissionBehavior, PermissionDecision
-from agentscope.tool import FunctionTool, ToolBase, ToolResponse
+from agentscope.tool import FunctionTool, ToolBase, ToolChunk
 from sqlmodel import Session, select
 
 from .db import engine
@@ -35,16 +35,23 @@ class AllowedFunctionTool(FunctionTool):
         )
 
 
-def _text(payload: Any) -> ToolResponse:
-    return ToolResponse(
-        content=[TextBlock(type="text", text=json.dumps(payload, default=str, ensure_ascii=False))]
+def _text(payload: Any, *, error: bool = False) -> ToolChunk:
+    """Wrap a JSON-serialisable payload as a completed tool result.
+
+    AgentScope's toolkit requires tool functions to return a ``ToolChunk``
+    (or a generator of them); returning a ``ToolResponse`` is silently
+    dropped to an empty result, so the model never sees the data.
+    """
+    return ToolChunk(
+        content=[TextBlock(type="text", text=json.dumps(payload, default=str, ensure_ascii=False))],
+        state=ToolResultState.ERROR if error else ToolResultState.SUCCESS,
     )
 
 
 def build_ontology_tools(ontology_id: str) -> list[ToolBase]:
     """Build the ontology tool set scoped to a single ontology."""
 
-    def ontology_list_object_types() -> ToolResponse:
+    def ontology_list_object_types() -> ToolChunk:
         """List all object types available in the bound ontology, including
         their properties. Use this first to discover what data exists."""
         with Session(engine) as session:
@@ -72,7 +79,7 @@ def build_ontology_tools(ontology_id: str) -> list[ToolBase]:
         filters: dict | None = None,
         search: str | None = None,
         limit: int = 25,
-    ) -> ToolResponse:
+    ) -> ToolChunk:
         """Query objects of a given object type from the ontology.
 
         Args:
@@ -85,10 +92,10 @@ def build_ontology_tools(ontology_id: str) -> list[ToolBase]:
             try:
                 result = query_objects(session, ontology_id, object_type, filters, search, limit)
             except OntologyError as exc:
-                return _text({"error": str(exc)})
+                return _text({"error": str(exc)}, error=True)
             return _text(result)
 
-    def ontology_traverse_link(link_type: str, source_object_id: str) -> ToolResponse:
+    def ontology_traverse_link(link_type: str, source_object_id: str) -> ToolChunk:
         """Traverse a relationship (link) from a source object to its linked
         objects.
 
@@ -100,14 +107,14 @@ def build_ontology_tools(ontology_id: str) -> list[ToolBase]:
             try:
                 result = traverse_link(session, ontology_id, link_type, source_object_id)
             except OntologyError as exc:
-                return _text({"error": str(exc)})
+                return _text({"error": str(exc)}, error=True)
             return _text(result)
 
     def ontology_execute_action(
         action: str,
         parameters: dict | None = None,
         object_id: str | None = None,
-    ) -> ToolResponse:
+    ) -> ToolChunk:
         """Execute an ontology action to create, modify or delete objects.
 
         Args:
@@ -119,7 +126,7 @@ def build_ontology_tools(ontology_id: str) -> list[ToolBase]:
             try:
                 result = execute_action(session, ontology_id, action, parameters, object_id)
             except OntologyError as exc:
-                return _text({"error": str(exc)})
+                return _text({"error": str(exc)}, error=True)
             return _text(result)
 
     return [

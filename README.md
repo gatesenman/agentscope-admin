@@ -12,6 +12,7 @@ The frontend is built on [vue-vben-admin](https://github.com/vbenjs/vue-vben-adm
 - **Credentials & models** — manage LLM provider credentials (OpenAI / DashScope / DeepSeek / Anthropic / …) and pick models per session.
 - **Playground** — chat with an agent over an SSE stream, with live tool-call and thinking traces; auto-prefills the agent's saved model defaults and permission mode.
 - **Multi-agent orchestration** — sequential pipelines chaining agents' outputs.
+- **Publishing (Dify-style)** — freeze an agent into a public **App** exposing three integration surfaces, with multi-key management. See [Publishing](#publishing).
 - **Integration center** — ready-to-copy cURL / Python snippets for embedding the API.
 - **Dashboard** — aggregate stats across agents, credentials, sessions and the ontology.
 
@@ -74,6 +75,29 @@ pnpm build:ele
 pnpm typecheck
 pnpm lint
 ```
+
+## Publishing
+
+Publishing freezes an agent into a public **App** (snapshotting its model, parameters, ontology binding and permission mode). Manage apps under **智能体平台 → 发布管理** (`/agentscope/publish`): publish/unpublish, toggle status, edit the public profile (name / icon / opening statement / suggested questions / allowed origins / rate limit), and manage API keys.
+
+Each app is reachable by an opaque `token` through three surfaces:
+
+| Surface | Entry point | Auth |
+| --- | --- | --- |
+| **Web App** (hosted UI) | `GET /app/{token}` (frontend) | none (login-free) |
+| **REST API** | `POST /v1/apps/{token}/chat-messages` | `Authorization: Bearer app-sk-…` |
+| **Embed** | `<iframe>` of the Web App, or floating bubble via `/static/embed.js` | none |
+
+The REST endpoint mirrors Dify's chat-messages contract and supports both `response_mode: "streaming"` (SSE) and `"blocking"` (single JSON answer):
+
+```bash
+curl -N http://localhost:8000/v1/apps/<token>/chat-messages \
+  -H "Authorization: Bearer <app-sk-...>" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"查询 wire 渠道交易","response_mode":"streaming"}'
+```
+
+API keys are shown **once** on creation, stored only as SHA-256 hashes (`key_prefix` is kept for display), and can be revoked; last-used time is tracked. Public chat is proxied to the server's own AgentScope endpoints under the app owner's identity, so published apps reuse the same ontology tools and permission mode as the playground. Backend lives in `server/app/publish/` (`models.py` tables + `router.py` admin/public endpoints).
 
 ---
 

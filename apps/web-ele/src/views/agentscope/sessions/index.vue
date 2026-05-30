@@ -128,15 +128,13 @@ async function send() {
   if (!sid) return;
 
   input.value = '';
-  messages.value.push({ role: 'user', text, tools: [] });
-  const assistant: ChatMessage = {
-    role: 'assistant',
-    text: '',
-    thinking: '',
-    tools: [],
-    pending: true,
-  };
-  messages.value.push(assistant);
+  messages.value.push(
+    { role: 'user', text, tools: [] },
+    { role: 'assistant', text: '', thinking: '', tools: [], pending: true },
+  );
+  // Mutate through the reactive array element (not the raw object) so that
+  // streamed deltas trigger re-renders.
+  const live = messages.value[messages.value.length - 1] as ChatMessage;
   sending.value = true;
   await scrollToBottom();
 
@@ -148,21 +146,20 @@ async function send() {
       onEvent: (event) => {
         switch (event.type) {
           case 'TEXT_BLOCK_DELTA': {
-            assistant.text += event.delta ?? '';
+            live.text += event.delta ?? '';
             break;
           }
           case 'THINKING_BLOCK_DELTA': {
-            assistant.thinking =
-              (assistant.thinking ?? '') + (event.delta ?? '');
+            live.thinking = (live.thinking ?? '') + (event.delta ?? '');
             break;
           }
           case 'TOOL_CALL_DELTA': {
-            const t = assistant.tools.find((x) => x.id === event.tool_call_id);
+            const t = live.tools.find((x) => x.id === event.tool_call_id);
             if (t) t.args += event.delta ?? '';
             break;
           }
           case 'TOOL_CALL_START': {
-            assistant.tools.push({
+            live.tools.push({
               id: event.tool_call_id,
               name: event.tool_call_name,
               args: '',
@@ -171,7 +168,7 @@ async function send() {
             break;
           }
           case 'TOOL_RESULT_TEXT_DELTA': {
-            const t = assistant.tools.find((x) => x.id === event.tool_call_id);
+            const t = live.tools.find((x) => x.id === event.tool_call_id);
             if (t) t.result += event.delta ?? '';
             break;
           }
@@ -180,9 +177,9 @@ async function send() {
       },
     });
   } catch (error: any) {
-    assistant.text += `\n[error] ${error?.message ?? error}`;
+    live.text += `\n[error] ${error?.message ?? error}`;
   } finally {
-    assistant.pending = false;
+    live.pending = false;
     sending.value = false;
     await scrollToBottom();
   }

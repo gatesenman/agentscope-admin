@@ -223,8 +223,44 @@ async function scrollToBottom() {
   if (wrap) wrap.scrollTop = wrap.scrollHeight;
 }
 
-// Apply a single streamed AgentEvent to the live assistant message.
-function applyEvent(live: ChatMessage, event: any) {
+// A single step accumulated while streaming one run's events. Turned into a
+// `TraceSpan` row at the end of the turn for the observability timeline.
+interface SpanAccum {
+  kind: string;
+  name: string;
+  status: string;
+  model_name: string;
+  input_text: string;
+  output_text: string;
+  input_tokens: number;
+  output_tokens: number;
+  start: number;
+  end: number;
+}
+
+interface RunTracer {
+  spans: SpanAccum[];
+  toolByCallId: Map<string, SpanAccum>;
+  lastTs: number;
+  start: number;
+}
+
+function createTracer(): RunTracer {
+  const t = performance.now();
+  return { spans: [], toolByCallId: new Map(), lastTs: t, start: t };
+}
+
+// Map a tool name to a trace `kind` so ontology/knowledge calls render with
+// their own icon/colour instead of the generic tool badge.
+function toolKind(name: string): string {
+  if (/ontolog/i.test(name)) return 'ontology';
+  if (/knowledge|retriev|rag/i.test(name)) return 'knowledge';
+  return 'tool';
+}
+
+// Apply a single streamed AgentEvent to the live assistant message, and (when
+// a tracer is supplied) accumulate execution-chain spans.
+function applyEvent(live: ChatMessage, event: any, tracer?: RunTracer) {
   switch (event.type) {
     case 'MODEL_CALL_END': {
       // Persist token usage for the observability dashboard (best-effort).
@@ -238,6 +274,22 @@ function applyEvent(live: ChatMessage, event: any) {
           output_tokens: event.output_tokens ?? 0,
         })
         .catch(() => {});
+      if (tracer) {
+        const now = performance.now();
+        tracer.spans.push({
+          kind: 'model',
+          name: modelName.value || 'model',
+          status: 'ok',
+          model_name: modelName.value,
+          input_text: '',
+          output_text: '',
+          input_tokens: event.input_tokens ?? 0,
+          output_tokens: event.output_tokens ?? 0,
+          start: tracer.lastTs,
+          end: now,
+        });
+        tracer.lastTs = now;
+      }
       break;
     }
     case 'REQUIRE_USER_CONFIRM': {
@@ -250,6 +302,23 @@ function applyEvent(live: ChatMessage, event: any) {
           input: tc.input ?? {},
         })),
       };
+      if (tracer) {
+        const now = performance.now();
+        tracer.spans.push({
+          kind: 'confirm',
+          name: '人工确认',
+          status: 'pending',
+          model_name: '',
+          input_text: (event.tool_calls ?? [])
+            .map((tc: any) => tc.name)
+            .join(', '),
+          output_text: '',
+          input_tokens: 0,
+          output_tokens: 0,
+          start: now,
+          end: now,
+        });
+      }
       break;
     }
     case 'TEXT_BLOCK_DELTA': {
@@ -263,6 +332,8 @@ function applyEvent(live: ChatMessage, event: any) {
     case 'TOOL_CALL_DELTA': {
       const t = live.tools.find((x) => x.id === event.tool_call_id);
       if (t) t.args += event.delta ?? '';
+      const span = tracer?.toolByCallId.get(event.tool_call_id);
+      if (span) span.input_text += event.delta ?? '';
       break;
     }
     case 'TOOL_CALL_START': {
@@ -272,15 +343,92 @@ function applyEvent(live: ChatMessage, event: any) {
         args: '',
         result: '',
       });
+      if (tracer) {
+        const now = performance.now();
+        const span: SpanAccum = {
+          kind: toolKind(event.tool_call_name ?? ''),
+          name: event.tool_call_name ?? 'tool',
+          status: 'ok',
+          model_name: '',
+          input_text: '',
+          output_text: '',
+          input_tokens: 0,
+          output_tokens: 0,
+          start: now,
+          end: now,
+        };
+        tracer.toolByCallId.set(event.tool_call_id, span);
+        tracer.spans.push(span);
+        tracer.lastTs = now;
+      }
       break;
     }
     case 'TOOL_RESULT_TEXT_DELTA': {
       const t = live.tools.find((x) => x.id === event.tool_call_id);
       if (t) t.result += event.delta ?? '';
+      const span = tracer?.toolByCallId.get(event.tool_call_id);
+      if (span) {
+        span.output_text += event.delta ?? '';
+        span.end = performance.now();
+      }
       break;
     }
   }
   void scrollToBottom();
+}
+
+// Ship the accumulated execution chain to the trace store (best-effort).
+function flushTrace(tracer: RunTracer, live: ChatMessage, errored: boolean) {
+  const now = performance.now();
+  if (live.text.trim()) {
+    tracer.spans.push({
+      kind: 'reply',
+      name: '回复',
+      status: 'ok',
+      model_name: '',
+      input_text: '',
+      output_text: live.text,
+      input_tokens: 0,
+      output_tokens: 0,
+      start: tracer.lastTs,
+      end: now,
+    });
+  }
+  if (errored) {
+    tracer.spans.push({
+      kind: 'error',
+      name: '错误',
+      status: 'error',
+      model_name: '',
+      input_text: '',
+      output_text: live.text.slice(-500),
+      input_tokens: 0,
+      output_tokens: 0,
+      start: tracer.lastTs,
+      end: now,
+    });
+  }
+  if (tracer.spans.length === 0) return;
+  void observabilityApi
+    .recordRun({
+      agent_id: agentId.value,
+      session_id: sessionId.value,
+      run_id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      source: 'playground',
+      spans: tracer.spans.map((s, i) => ({
+        seq: i,
+        kind: s.kind,
+        name: s.name,
+        status: s.status,
+        model_name: s.model_name,
+        input_text: s.input_text,
+        output_text: s.output_text,
+        input_tokens: s.input_tokens,
+        output_tokens: s.output_tokens,
+        duration_ms: Math.max(0, Math.round(s.end - s.start)),
+      })),
+    })
+    .catch(() => {});
 }
 
 // Run one streaming turn, applying events to `live`. Used for both the initial
@@ -288,18 +436,22 @@ function applyEvent(live: ChatMessage, event: any) {
 async function runTurn(sid: string, live: ChatMessage, inputPayload: any) {
   sending.value = true;
   live.pending = true;
+  const tracer = createTracer();
+  let errored = false;
   try {
     await chatApi.streamChat({
       agentId: agentId.value,
       sessionId: sid,
       input: inputPayload,
-      onEvent: (event) => applyEvent(live, event),
+      onEvent: (event) => applyEvent(live, event, tracer),
     });
   } catch (error: any) {
+    errored = true;
     live.text += `\n[error] ${error?.message ?? error}`;
   } finally {
     live.pending = false;
     sending.value = false;
+    flushTrace(tracer, live, errored);
     await scrollToBottom();
   }
 }

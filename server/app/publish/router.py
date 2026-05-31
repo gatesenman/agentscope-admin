@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+import time
 import uuid
 from datetime import datetime
 from typing import Any, AsyncGenerator
@@ -27,7 +28,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from ..agent_profile.models import AgentProfile
-from ..observability.models import UsageLog
+from ..observability.models import TraceSpan, UsageLog
 from ..ontology.db import engine, get_session
 from ..settings import get_settings
 from .models import AppApiKey, PublishedApp
@@ -380,20 +381,137 @@ async def _proxy_chat_events(
         model_name = ""
         if model_config is not None:
             model_name = model_config.get("model_name", "")
-        async with client.stream(
-            "POST",
-            "/chat/",
-            json=chat_body,
-            headers=headers,
-        ) as stream:
-            async for line in stream.aiter_lines():
-                if line:
-                    _capture_usage_frame(
-                        line, app, session_id, model_name,
-                    )
-                    yield f"{line}\n"
-                else:
-                    yield "\n"
+        tracer = _TraceCollector(app, session_id, model_name)
+        try:
+            async with client.stream(
+                "POST",
+                "/chat/",
+                json=chat_body,
+                headers=headers,
+            ) as stream:
+                async for line in stream.aiter_lines():
+                    if line:
+                        _capture_usage_frame(
+                            line, app, session_id, model_name,
+                        )
+                        tracer.feed(line)
+                        yield f"{line}\n"
+                    else:
+                        yield "\n"
+        finally:
+            tracer.flush()
+
+
+class _TraceCollector:
+    """Builds execution-chain spans from relayed SSE frames (server side).
+
+    Mirrors the playground tracer so published-app traffic also shows up in
+    the per-session trace timeline.
+    """
+
+    def __init__(self, app: PublishedApp, session_id: str, model_name: str):
+        self._app = app
+        self._session_id = session_id
+        self._model_name = model_name
+        self._run_id = f"app-{uuid.uuid4().hex[:12]}"
+        self._spans: list[dict[str, Any]] = []
+        self._tools: dict[str, dict[str, Any]] = {}
+        self._reply = ""
+        self._last = time.perf_counter()
+
+    @staticmethod
+    def _tool_kind(name: str) -> str:
+        low = (name or "").lower()
+        if "ontolog" in low:
+            return "ontology"
+        if any(k in low for k in ("knowledge", "retriev", "rag")):
+            return "knowledge"
+        return "tool"
+
+    def feed(self, line: str) -> None:
+        if not line.startswith("data:"):
+            return
+        try:
+            event = json.loads(line[5:].strip())
+        except (ValueError, TypeError):
+            return
+        etype = event.get("type")
+        now = time.perf_counter()
+        if etype == "MODEL_CALL_END":
+            self._spans.append(
+                {
+                    "kind": "model",
+                    "name": self._model_name or "model",
+                    "model_name": self._model_name,
+                    "input_tokens": int(event.get("input_tokens", 0) or 0),
+                    "output_tokens": int(event.get("output_tokens", 0) or 0),
+                    "duration_ms": int((now - self._last) * 1000),
+                },
+            )
+            self._last = now
+        elif etype == "TOOL_CALL_START":
+            tid = event.get("tool_call_id", "")
+            name = event.get("tool_call_name", "tool")
+            span = {
+                "kind": self._tool_kind(name),
+                "name": name,
+                "input_text": "",
+                "output_text": "",
+                "start": now,
+            }
+            self._tools[tid] = span
+            self._spans.append(span)
+            self._last = now
+        elif etype == "TOOL_CALL_DELTA":
+            span = self._tools.get(event.get("tool_call_id", ""))
+            if span is not None:
+                span["input_text"] = span.get("input_text", "") + (
+                    event.get("delta", "") or ""
+                )
+        elif etype == "TOOL_RESULT_TEXT_DELTA":
+            span = self._tools.get(event.get("tool_call_id", ""))
+            if span is not None:
+                span["output_text"] = span.get("output_text", "") + (
+                    event.get("delta", "") or ""
+                )
+                span["duration_ms"] = int((now - span.get("start", now)) * 1000)
+        elif etype == "TEXT_BLOCK_DELTA":
+            self._reply += event.get("delta", "") or ""
+
+    def flush(self) -> None:
+        if self._reply.strip():
+            self._spans.append(
+                {
+                    "kind": "reply",
+                    "name": "回复",
+                    "output_text": self._reply,
+                    "duration_ms": 0,
+                },
+            )
+        if not self._spans:
+            return
+        with Session(engine) as db:
+            for i, s in enumerate(self._spans):
+                db.add(
+                    TraceSpan(
+                        owner_user_id=self._app.owner_user_id,
+                        agent_id=self._app.agent_id,
+                        session_id=self._session_id,
+                        run_id=self._run_id,
+                        source="app",
+                        seq=i,
+                        kind=s.get("kind", "tool"),
+                        name=s.get("name", ""),
+                        status="ok",
+                        model_name=s.get("model_name", ""),
+                        input_text=str(s.get("input_text", ""))[:8000],
+                        output_text=str(s.get("output_text", ""))[:8000],
+                        input_tokens=int(s.get("input_tokens", 0)),
+                        output_tokens=int(s.get("output_tokens", 0)),
+                        duration_ms=int(s.get("duration_ms", 0)),
+                    ),
+                )
+            db.commit()
 
 
 def _capture_usage_frame(

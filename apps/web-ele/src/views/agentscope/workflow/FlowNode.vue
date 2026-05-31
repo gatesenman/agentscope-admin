@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 
+import { IconifyIcon } from '@vben/icons';
+
 import { Handle, Position } from '@vue-flow/core';
 
 const props = defineProps<{
@@ -11,17 +13,18 @@ const props = defineProps<{
 }>();
 
 const META: Record<string, { color: string; icon: string; label: string }> = {
-  start: { color: '#10b981', icon: '🚀', label: '开始' },
-  llm: { color: '#6366f1', icon: '🤖', label: 'LLM' },
-  agent: { color: '#8b5cf6', icon: '🧠', label: '智能体' },
-  knowledge: { color: '#0ea5e9', icon: '📚', label: '知识检索' },
-  condition: { color: '#f59e0b', icon: '🔀', label: '条件分支' },
-  template: { color: '#64748b', icon: '📝', label: '模板' },
-  answer: { color: '#ef4444', icon: '💬', label: '回复' },
-  end: { color: '#ef4444', icon: '🏁', label: '结束' },
+  start: { color: '#10b981', icon: 'lucide:play', label: '开始' },
+  llm: { color: '#6366f1', icon: 'lucide:sparkles', label: 'LLM' },
+  agent: { color: '#8b5cf6', icon: 'lucide:bot', label: '智能体' },
+  knowledge: { color: '#0ea5e9', icon: 'lucide:book-open', label: '知识检索' },
+  ontology: { color: '#0d9488', icon: 'lucide:share-2', label: '本体操作' },
+  condition: { color: '#f59e0b', icon: 'lucide:git-branch', label: '条件分支' },
+  template: { color: '#64748b', icon: 'lucide:file-code', label: '模板' },
+  answer: { color: '#ef4444', icon: 'lucide:message-square', label: '回复' },
+  end: { color: '#ef4444', icon: 'lucide:flag', label: '结束' },
 };
 
-const FALLBACK = { color: '#64748b', icon: '📦', label: '节点' };
+const FALLBACK = { color: '#64748b', icon: 'lucide:box', label: '节点' };
 const meta = computed(() => META[props.type] ?? FALLBACK);
 const isStart = computed(() => props.type === 'start');
 const isEnd = computed(() => props.type === 'answer' || props.type === 'end');
@@ -38,7 +41,11 @@ const isCondition = computed(() => props.type === 'condition');
     <div class="flow-node__bar" :style="{ background: meta.color }"></div>
     <div class="flow-node__body">
       <div class="flow-node__title">
-        <span class="flow-node__icon">{{ data.icon || meta.icon }}</span>
+        <IconifyIcon
+          class="flow-node__icon"
+          :icon="meta.icon"
+          :style="{ color: meta.color }"
+        />
         <span>{{ data.title || meta.label }}</span>
       </div>
       <div class="flow-node__type">{{ meta.label }}</div>
@@ -95,6 +102,10 @@ const isCondition = computed(() => props.type === 'condition');
   align-items: center;
   font-size: 14px;
   font-weight: 600;
+}
+
+.flow-node__icon {
+  font-size: 16px;
 }
 
 .flow-node__type {

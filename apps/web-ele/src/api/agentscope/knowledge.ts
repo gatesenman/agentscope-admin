@@ -1,7 +1,17 @@
 import { agentScopeClient } from './request';
 
+export type ChunkStrategy = 'general' | 'parent_child';
+export type IndexMethod = 'hybrid' | 'keyword' | 'knowledge_graph' | 'vector';
+
 export interface PipelineStage {
-  type: 'clean' | 'extract' | 'index' | 'split';
+  type:
+    | 'build_graph'
+    | 'clean'
+    | 'embed'
+    | 'extract'
+    | 'index'
+    | 'split'
+    | 'split_parent_child';
   name: string;
   config: Record<string, any>;
 }
@@ -12,11 +22,25 @@ export interface KnowledgeBase {
   name: string;
   description: string;
   icon: string;
+  chunk_strategy: ChunkStrategy;
+  index_method: IndexMethod;
+  kg_type: string;
+  kg_credential_id: string;
+  kg_model: string;
   pipeline: PipelineStage[];
   top_k: number;
   score_threshold: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface KnowledgeTriple {
+  id: string;
+  subject: string;
+  predicate: string;
+  object: string;
+  document_id: string;
+  chunk_id: string;
 }
 
 export interface KnowledgeBaseListItem {
@@ -32,9 +56,16 @@ export interface KnowledgeDocument {
   content: string;
   status: 'failed' | 'indexed' | 'pending';
   chunk_count: number;
+  triple_count: number;
   error: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface RetrievedTriple {
+  subject: string;
+  predicate: string;
+  object: string;
 }
 
 export interface RetrievedChunk {
@@ -43,6 +74,8 @@ export interface RetrievedChunk {
   seq: number;
   content: string;
   score: number;
+  context?: string;
+  triples?: RetrievedTriple[];
 }
 
 export function listKnowledgeBases() {
@@ -101,9 +134,27 @@ export function deleteDocument(kbId: string, docId: string) {
   );
 }
 
-export function retrieve(kbId: string, query: string, topK?: number) {
+export function retrieve(
+  kbId: string,
+  query: string,
+  topK?: number,
+  method?: string,
+) {
   return agentScopeClient.post<{ items: RetrievedChunk[]; total: number }>(
     `/admin/knowledge-bases/${kbId}/retrieve`,
-    { query, top_k: topK },
+    { query, top_k: topK, method },
+  );
+}
+
+export function reindexKnowledgeBase(kbId: string) {
+  return agentScopeClient.post<{ ok: boolean; reindexed: number }>(
+    `/admin/knowledge-bases/${kbId}/reindex`,
+  );
+}
+
+export function listTriples(kbId: string, documentId?: string) {
+  return agentScopeClient.get<{ items: KnowledgeTriple[]; total: number }>(
+    `/admin/knowledge-bases/${kbId}/triples`,
+    documentId ? { params: { document_id: documentId } } : undefined,
   );
 }

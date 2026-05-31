@@ -77,7 +77,7 @@ def reset_kb() -> str:
         json={
             "name": KB_NAME,
             "description": "反欺诈与合规知识",
-            "icon": "🛡️",
+            "icon": "lucide:shield",
             "top_k": 4,
         },
     )
@@ -160,7 +160,7 @@ def reset_workflow(kb_id: str, credential_id: str | None, credential_type: str |
         json={
             "name": WF_NAME,
             "description": "知识检索增强问答",
-            "icon": "🧩",
+            "icon": "lucide:workflow",
             "graph": graph,
         },
     )

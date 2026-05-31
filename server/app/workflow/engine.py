@@ -25,7 +25,7 @@ _TEMPLATE = re.compile(r"\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}")
 
 
 def _event(payload: dict[str, Any]) -> str:
-    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+    return f"data: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
 
 
 def _resp_text(content: Any) -> str:
@@ -145,6 +145,8 @@ class WorkflowEngine:
                     output["text"] = text
             elif ntype == "knowledge":
                 output = self._run_knowledge(data)
+            elif ntype == "ontology":
+                output = self._run_ontology(data)
             elif ntype == "template":
                 output = {"text": _resolve(data.get("template", ""), self.context)}
             elif ntype == "condition":
@@ -293,6 +295,48 @@ class WorkflowEngine:
                 for h in hits
             ],
         }
+
+    def _run_ontology(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Run a Palantir-style ontology operation: semantic object query,
+        relationship traversal or action execution against a bound ontology."""
+        from ..ontology import service as ontology_service
+
+        ontology_id = data.get("ontology_id", "")
+        op = data.get("operation", "query")
+        try:
+            if op == "query":
+                filters = data.get("filters") or {}
+                resolved = {k: _resolve(str(v), self.context) for k, v in filters.items()}
+                result = ontology_service.query_objects(
+                    self.session,
+                    ontology_id,
+                    data.get("object_type", ""),
+                    {k: v for k, v in resolved.items() if v != ""} or None,
+                    _resolve(data.get("search", ""), self.context) or None,
+                    int(data.get("limit", 25)),
+                )
+            elif op == "traverse":
+                result = ontology_service.traverse_link(
+                    self.session,
+                    ontology_id,
+                    data.get("link_type", ""),
+                    _resolve(data.get("source_object_id", ""), self.context),
+                )
+            elif op == "execute_action":
+                params = data.get("parameters") or {}
+                resolved = {k: _resolve(str(v), self.context) for k, v in params.items()}
+                result = ontology_service.execute_action(
+                    self.session,
+                    ontology_id,
+                    data.get("action", ""),
+                    resolved or None,
+                    _resolve(data.get("object_id", ""), self.context) or None,
+                )
+            else:
+                result = {"error": f"Unknown ontology operation: {op!r}"}
+        except ontology_service.OntologyError as exc:
+            result = {"error": str(exc)}
+        return {"result": result, "text": json.dumps(result, ensure_ascii=False, default=str)}
 
     def _eval_condition(self, data: dict[str, Any]) -> str:
         left = _resolve(data.get("variable", ""), self.context)

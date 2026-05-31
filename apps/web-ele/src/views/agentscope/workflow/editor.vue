@@ -7,8 +7,10 @@ import type {
 import type { KnowledgeBaseListItem } from '#/api/agentscope/knowledge';
 import type { Workflow, WorkflowRunEvent } from '#/api/agentscope/workflow';
 
-import { computed, markRaw, onMounted, ref } from 'vue';
+import { computed, markRaw, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+
+import { IconifyIcon } from '@vben/icons';
 
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
@@ -34,6 +36,7 @@ import {
   credentialApi,
   knowledgeApi,
   modelApi,
+  ontologyApi,
   workflowApi,
 } from '#/api/agentscope';
 import { $t } from '#/locales';
@@ -59,12 +62,13 @@ const {
 } = useVueFlow();
 
 const PALETTE = [
-  { type: 'llm', label: 'LLM', icon: '🤖' },
-  { type: 'agent', label: '智能体', icon: '🧠' },
-  { type: 'knowledge', label: '知识检索', icon: '📚' },
-  { type: 'condition', label: '条件分支', icon: '🔀' },
-  { type: 'template', label: '模板', icon: '📝' },
-  { type: 'answer', label: '回复', icon: '💬' },
+  { type: 'llm', label: 'LLM', icon: 'lucide:sparkles' },
+  { type: 'agent', label: '智能体', icon: 'lucide:bot' },
+  { type: 'knowledge', label: '知识检索', icon: 'lucide:book-open' },
+  { type: 'ontology', label: '本体操作', icon: 'lucide:share-2' },
+  { type: 'condition', label: '条件分支', icon: 'lucide:git-branch' },
+  { type: 'template', label: '模板', icon: 'lucide:file-code' },
+  { type: 'answer', label: '回复', icon: 'lucide:message-square' },
 ];
 
 const nodeTypes: any = {
@@ -72,11 +76,18 @@ const nodeTypes: any = {
   llm: markRaw(FlowNode),
   agent: markRaw(FlowNode),
   knowledge: markRaw(FlowNode),
+  ontology: markRaw(FlowNode),
   condition: markRaw(FlowNode),
   template: markRaw(FlowNode),
   answer: markRaw(FlowNode),
   end: markRaw(FlowNode),
 };
+
+const ontologyOps = [
+  { value: 'query', label: '语义查询对象' },
+  { value: 'traverse', label: '遍历关系' },
+  { value: 'execute_action', label: '执行动作' },
+];
 
 const loaded = ref(false);
 const saving = ref(false);
@@ -89,6 +100,10 @@ const agents = ref<AgentRecord[]>([]);
 const credentials = ref<CredentialRecord[]>([]);
 const models = ref<ModelCard[]>([]);
 const kbs = ref<KnowledgeBaseListItem[]>([]);
+const ontologies = ref<any[]>([]);
+const ontObjectTypes = ref<any[]>([]);
+const ontLinkTypes = ref<any[]>([]);
+const ontActionTypes = ref<any[]>([]);
 
 const selectedId = ref<string>('');
 const selectedNode = computed(() =>
@@ -143,6 +158,22 @@ function defaultData(type: string): Record<string, any> {
         parameters: {},
       };
     }
+    case 'ontology': {
+      return {
+        title: '本体操作',
+        ontology_id: ontologies.value[0]?.id ?? '',
+        operation: 'query',
+        object_type: '',
+        search: '{{start.query}}',
+        filters: {},
+        limit: 10,
+        link_type: '',
+        source_object_id: '',
+        action: '',
+        object_id: '',
+        parameters: {},
+      };
+    }
     case 'template': {
       return { title: '模板', template: '' };
     }
@@ -174,17 +205,83 @@ function onLlmCredentialChange(node: any, id: string) {
   void loadModels(id);
 }
 
+// ---- Ontology node helpers ----
+async function loadOntologyMeta(ontologyId: string) {
+  ontObjectTypes.value = [];
+  ontLinkTypes.value = [];
+  ontActionTypes.value = [];
+  if (!ontologyId) return;
+  try {
+    const [ot, lt, at] = await Promise.all([
+      ontologyApi.listObjectTypes(ontologyId),
+      ontologyApi.listLinkTypes(ontologyId),
+      ontologyApi.listActionTypes(ontologyId),
+    ]);
+    ontObjectTypes.value = ot.items ?? [];
+    ontLinkTypes.value = lt.items ?? [];
+    ontActionTypes.value = at.items ?? [];
+  } catch {
+    // manual entry still allowed
+  }
+}
+
+function onOntologyChange(node: any, id: string) {
+  node.data.ontology_id = id;
+  void loadOntologyMeta(id);
+}
+
+// JSON proxies for the filters / parameters maps. Parsed on blur so partial
+// edits don't blow up; invalid JSON is simply ignored until valid.
+const filtersText = ref('{}');
+const paramsText = ref('{}');
+
+function syncOntologyText() {
+  const d = selectedNode.value?.data;
+  filtersText.value = JSON.stringify(d?.filters ?? {}, null, 2);
+  paramsText.value = JSON.stringify(d?.parameters ?? {}, null, 2);
+}
+
+function commitFilters() {
+  try {
+    if (selectedNode.value) {
+      selectedNode.value.data.filters = JSON.parse(filtersText.value || '{}');
+    }
+  } catch {
+    ElMessage.warning('过滤条件需为合法 JSON');
+  }
+}
+
+function commitParams() {
+  try {
+    if (selectedNode.value) {
+      selectedNode.value.data.parameters = JSON.parse(paramsText.value || '{}');
+    }
+  } catch {
+    ElMessage.warning('动作参数需为合法 JSON');
+  }
+}
+
+watch(selectedId, () => {
+  const node = selectedNode.value;
+  if (node?.type === 'ontology') {
+    syncOntologyText();
+    if (node.data?.ontology_id) void loadOntologyMeta(node.data.ontology_id);
+  }
+});
+
 async function load() {
-  const [w, ag, cr, kb] = await Promise.all([
+  const [w, ag, cr, kb, ont] = await Promise.all([
     workflowApi.getWorkflow(workflowId),
     agentApi.listAgents(),
     credentialApi.listCredentials(),
     knowledgeApi.listKnowledgeBases(),
+    ontologyApi.listOntologies(),
   ]);
   wf.value = w;
   agents.value = ag.agents ?? [];
   credentials.value = cr.credentials ?? [];
   kbs.value = kb.items ?? [];
+  ontologies.value = ont.items ?? [];
   initialNodes.value = (w.graph.nodes ?? []).map((n, i) => ({
     id: n.id,
     type: n.type,
@@ -300,17 +397,17 @@ async function doRun() {
       onEvent: (ev: WorkflowRunEvent) => {
         switch (ev.type) {
           case 'error': {
-            runLog.value.push({ type: 'error', text: `✗ ${ev.message}` });
+            runLog.value.push({ type: 'error', text: ev.message ?? 'error' });
 
             break;
           }
           case 'node_finished': {
-            runLog.value.push({ type: 'done', text: `✓ ${ev.node_id}` });
+            runLog.value.push({ type: 'done', text: ev.node_id ?? '' });
 
             break;
           }
           case 'node_started': {
-            runLog.value.push({ type: 'node', text: `▶ ${ev.title}` });
+            runLog.value.push({ type: 'node', text: ev.title ?? '' });
 
             break;
           }
@@ -321,7 +418,7 @@ async function doRun() {
           }
           case 'workflow_finished': {
             if (ev.output) runAnswer.value = ev.output;
-            runLog.value.push({ type: 'done', text: '✓ finished' });
+            runLog.value.push({ type: 'done', text: 'finished' });
 
             break;
           }
@@ -343,7 +440,8 @@ onMounted(load);
   <div class="wf-editor">
     <div class="wf-toolbar">
       <ElButton link @click="router.back()">
-        ‹ {{ $t('agentscope.common.back') }}
+        <IconifyIcon icon="lucide:chevron-left" />
+        {{ $t('agentscope.common.back') }}
       </ElButton>
       <ElInput v-if="wf" v-model="wf.name" size="small" style="width: 240px" />
       <div style="flex: 1"></div>
@@ -367,7 +465,8 @@ onMounted(load);
           class="wf-palette__btn"
           @click="addNode(p.type)"
         >
-          {{ p.icon }} {{ p.label }}
+          <IconifyIcon :icon="p.icon" style="margin-right: 4px" />
+          {{ p.label }}
         </ElButton>
       </div>
 
@@ -528,6 +627,121 @@ onMounted(load);
                 </ElFormItem>
               </template>
 
+              <!-- ontology -->
+              <template v-if="selectedNode.type === 'ontology'">
+                <ElFormItem label="本体">
+                  <ElSelect
+                    v-model="selectedNode.data.ontology_id"
+                    @change="(v: string) => onOntologyChange(selectedNode!, v)"
+                  >
+                    <ElOption
+                      v-for="o in ontologies"
+                      :key="o.id"
+                      :label="o.display_name || o.api_name"
+                      :value="o.id"
+                    />
+                  </ElSelect>
+                </ElFormItem>
+                <ElFormItem label="操作">
+                  <ElSelect v-model="selectedNode.data.operation">
+                    <ElOption
+                      v-for="op in ontologyOps"
+                      :key="op.value"
+                      :label="op.label"
+                      :value="op.value"
+                    />
+                  </ElSelect>
+                </ElFormItem>
+
+                <!-- query fields -->
+                <template v-if="selectedNode.data.operation === 'query'">
+                  <ElFormItem label="对象类型">
+                    <ElSelect
+                      v-model="selectedNode.data.object_type"
+                      filterable
+                      allow-create
+                    >
+                      <ElOption
+                        v-for="ot in ontObjectTypes"
+                        :key="ot.id"
+                        :label="ot.display_name || ot.api_name"
+                        :value="ot.api_name"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem label="搜索表达式">
+                    <ElInput v-model="selectedNode.data.search" />
+                  </ElFormItem>
+                  <ElFormItem label="过滤条件 (JSON)">
+                    <ElInput
+                      v-model="filtersText"
+                      type="textarea"
+                      :rows="3"
+                      @change="commitFilters"
+                    />
+                  </ElFormItem>
+                  <ElFormItem label="返回数量">
+                    <ElInputNumber
+                      v-model="selectedNode.data.limit"
+                      :min="1"
+                      :max="100"
+                    />
+                  </ElFormItem>
+                </template>
+
+                <!-- traverse fields -->
+                <template v-if="selectedNode.data.operation === 'traverse'">
+                  <ElFormItem label="关系类型">
+                    <ElSelect
+                      v-model="selectedNode.data.link_type"
+                      filterable
+                      allow-create
+                    >
+                      <ElOption
+                        v-for="lt in ontLinkTypes"
+                        :key="lt.id"
+                        :label="lt.display_name || lt.api_name"
+                        :value="lt.api_name"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem label="源对象 ID">
+                    <ElInput v-model="selectedNode.data.source_object_id" />
+                  </ElFormItem>
+                </template>
+
+                <!-- execute_action fields -->
+                <template
+                  v-if="selectedNode.data.operation === 'execute_action'"
+                >
+                  <ElFormItem label="动作">
+                    <ElSelect
+                      v-model="selectedNode.data.action"
+                      filterable
+                      allow-create
+                    >
+                      <ElOption
+                        v-for="at in ontActionTypes"
+                        :key="at.id"
+                        :label="at.display_name || at.api_name"
+                        :value="at.api_name"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem label="对象 ID">
+                    <ElInput v-model="selectedNode.data.object_id" />
+                  </ElFormItem>
+                  <ElFormItem label="参数 (JSON)">
+                    <ElInput
+                      v-model="paramsText"
+                      type="textarea"
+                      :rows="3"
+                      @change="commitParams"
+                    />
+                  </ElFormItem>
+                </template>
+              </template>
+
               <!-- template -->
               <template v-if="selectedNode.type === 'template'">
                 <ElFormItem :label="$t('agentscope.workflow.template')">
@@ -580,8 +794,24 @@ onMounted(load);
           v-for="(l, i) in runLog"
           :key="i"
           :style="{ color: l.type === 'error' ? '#ef4444' : undefined }"
-          style="font-family: monospace; font-size: 12px; line-height: 1.8"
+          style="
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.8;
+          "
         >
+          <IconifyIcon
+            :icon="
+              l.type === 'error'
+                ? 'lucide:x-circle'
+                : l.type === 'node'
+                  ? 'lucide:play'
+                  : 'lucide:check'
+            "
+          />
           {{ l.text }}
         </div>
       </ElCard>

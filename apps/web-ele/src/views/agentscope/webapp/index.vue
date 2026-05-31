@@ -4,6 +4,8 @@ import type { PublicAppMeta } from '#/api/agentscope/publish';
 import { nextTick, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
+import { IconifyIcon } from '@vben/icons';
+
 import { ElButton, ElInput } from 'element-plus';
 
 import { getPublicAppMeta, streamPublicChat } from '#/api/agentscope/publish';
@@ -63,7 +65,7 @@ async function send(text?: string) {
       },
     });
   } catch {
-    assistant.text = '⚠️ 请求失败，请稍后重试。';
+    assistant.text = '请求失败，请稍后重试。';
   } finally {
     sending.value = false;
     await scrollDown();
@@ -75,7 +77,7 @@ async function send(text?: string) {
   <div class="flex h-screen flex-col bg-gray-50 dark:bg-zinc-900">
     <div v-if="error" class="flex flex-1 items-center justify-center">
       <div class="text-center text-gray-500">
-        <div class="mb-2 text-5xl">🔌</div>
+        <IconifyIcon icon="lucide:unplug" class="mb-2 text-5xl" />
         {{ error }}
       </div>
     </div>
@@ -85,7 +87,12 @@ async function send(text?: string) {
       <header
         class="flex items-center gap-3 border-b bg-white px-6 py-4 dark:border-zinc-700 dark:bg-zinc-800"
       >
-        <span class="text-2xl">{{ meta.icon }}</span>
+        <IconifyIcon
+          v-if="meta.icon && meta.icon.includes(':')"
+          :icon="meta.icon"
+          class="text-2xl"
+        />
+        <span v-else class="text-2xl">{{ meta.icon }}</span>
         <div>
           <div class="font-semibold">{{ meta.name }}</div>
           <div class="text-xs text-gray-400">{{ meta.description }}</div>

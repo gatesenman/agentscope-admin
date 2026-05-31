@@ -5,6 +5,7 @@ import type { AppApiKey, PublishedApp } from '#/api/agentscope/publish';
 import { computed, onMounted, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
+import { IconifyIcon } from '@vben/icons';
 
 import {
   ElButton,
@@ -50,7 +51,7 @@ const saving = ref(false);
 const form = reactive({
   agent_id: '',
   name: '',
-  icon: '🤖',
+  icon: 'lucide:bot',
   description: '',
   opening_statement: '',
   suggested_questions: '',
@@ -77,7 +78,7 @@ async function load() {
 function openPublish() {
   form.agent_id = agents.value[0]?.id ?? '';
   form.name = '';
-  form.icon = '🤖';
+  form.icon = 'lucide:bot';
   form.description = '';
   form.opening_statement = '';
   form.suggested_questions = '';
@@ -240,7 +241,12 @@ onMounted(load);
         <ElTableColumn :label="$t('agentscope.common.name')" min-width="200">
           <template #default="{ row }">
             <div class="flex items-center gap-2">
-              <span class="text-xl">{{ row.icon }}</span>
+              <IconifyIcon
+                v-if="row.icon && row.icon.includes(':')"
+                :icon="row.icon"
+                class="text-xl"
+              />
+              <span v-else class="text-xl">{{ row.icon }}</span>
               <div>
                 <div class="font-medium">{{ row.name }}</div>
                 <div class="text-muted-foreground text-xs">
@@ -309,7 +315,7 @@ onMounted(load);
         </ElFormItem>
         <div class="flex gap-3">
           <ElFormItem :label="$t('agentscope.publish.icon')" class="w-24">
-            <ElInput v-model="form.icon" maxlength="2" />
+            <ElInput v-model="form.icon" placeholder="lucide:bot" />
           </ElFormItem>
           <ElFormItem :label="$t('agentscope.publish.appName')" class="flex-1">
             <ElInput
@@ -348,7 +354,7 @@ onMounted(load);
           <ElForm label-position="top">
             <div class="flex gap-3">
               <ElFormItem :label="$t('agentscope.publish.icon')" class="w-24">
-                <ElInput v-model="current.icon" maxlength="2" />
+                <ElInput v-model="current.icon" placeholder="lucide:bot" />
               </ElFormItem>
               <ElFormItem
                 :label="$t('agentscope.publish.appName')"

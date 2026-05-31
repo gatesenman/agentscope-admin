@@ -46,7 +46,7 @@ class PublishIn(BaseModel):
     agent_id: str
     name: str = ""
     description: str = ""
-    icon: str = "🤖"
+    icon: str = "lucide:bot"
     opening_statement: str = ""
     suggested_questions: list[str] = Field(default_factory=list)
     allowed_origins: list[str] = Field(default_factory=lambda: ["*"])
@@ -178,7 +178,7 @@ def publish_app(
         agent_id=body.agent_id,
         name=body.name or body.agent_id,
         description=body.description,
-        icon=body.icon or "🤖",
+        icon=body.icon or "lucide:bot",
         opening_statement=body.opening_statement,
         suggested_questions=body.suggested_questions,
         allowed_origins=body.allowed_origins or ["*"],

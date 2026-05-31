@@ -5,6 +5,7 @@ import { onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
+import { IconifyIcon } from '@vben/icons';
 
 import {
   ElButton,
@@ -30,7 +31,7 @@ const workflows = ref<Workflow[]>([]);
 
 const dialog = ref(false);
 const saving = ref(false);
-const form = reactive({ name: '', description: '', icon: '🔗' });
+const form = reactive({ name: '', description: '', icon: 'lucide:workflow' });
 
 async function load() {
   loading.value = true;
@@ -45,7 +46,7 @@ async function load() {
 function openCreate() {
   form.name = '';
   form.description = '';
-  form.icon = '🔗';
+  form.icon = 'lucide:workflow';
   dialog.value = true;
 }
 
@@ -94,7 +95,11 @@ onMounted(load);
       <ElTable v-loading="loading" :data="workflows" stripe>
         <ElTableColumn :label="$t('agentscope.common.name')" min-width="220">
           <template #default="{ row }">
-            <span style="margin-right: 6px">{{ row.icon }}</span>
+            <IconifyIcon
+              v-if="row.icon && row.icon.includes(':')"
+              :icon="row.icon"
+              style="margin-right: 6px; vertical-align: -2px"
+            />
             <strong>{{ row.name }}</strong>
             <div style="font-size: 12px; color: var(--el-text-color-secondary)">
               {{ row.description }}

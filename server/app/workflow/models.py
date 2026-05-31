@@ -54,7 +54,7 @@ class Workflow(SQLModel, table=True):
     owner_user_id: str = Field(default="admin", index=True)
     name: str = ""
     description: str = ""
-    icon: str = "🧩"
+    icon: str = "lucide:workflow"
 
     graph: dict[str, Any] = Field(default_factory=_default_graph, sa_column=Column(SAJSON))
     enabled: bool = True

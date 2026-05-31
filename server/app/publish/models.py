@@ -41,7 +41,7 @@ class PublishedApp(SQLModel, table=True):
     # Branding shown on the hosted Web App.
     name: str = ""
     description: str = ""
-    icon: str = "🤖"
+    icon: str = "lucide:bot"
     opening_statement: str = ""
     suggested_questions: list[str] = Field(
         default_factory=list,

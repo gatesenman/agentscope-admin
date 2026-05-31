@@ -9,6 +9,7 @@ bigrams, Latin runs as lowercased words.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import re
 from collections import Counter
@@ -75,11 +76,36 @@ def _split(text: str, config: dict[str, Any]) -> list[str]:
     return [c.strip() for c in chunks if c.strip()]
 
 
+def _split_parent_child(
+    text: str,
+    config: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Parent-child segmentation: split into large *parent* blocks, then split
+    each parent into small *child* chunks. Children are indexed for precise
+    matching while the parent supplies surrounding context at retrieval time.
+
+    Returns a list of ``{"content", "children": [str, ...]}`` parents.
+    """
+    parent_size = int(config.get("parent_size", 1200))
+    child_cfg = {
+        "chunk_size": int(config.get("chunk_size", 400)),
+        "chunk_overlap": int(config.get("chunk_overlap", 40)),
+        "separator": config.get("separator", "\n\n"),
+    }
+    parents = _split(text, {"chunk_size": parent_size, "chunk_overlap": 0, "separator": "\n\n"})
+    out: list[dict[str, Any]] = []
+    for parent in parents:
+        children = _split(parent, child_cfg) or [parent]
+        out.append({"content": parent, "children": children})
+    return out
+
+
 def run_pipeline(
     raw_text: str,
     pipeline: list[dict[str, Any]],
 ) -> list[str]:
-    """Run the ingestion pipeline, returning the list of chunk texts."""
+    """Run the ingestion pipeline, returning the list of chunk texts (general
+    chunking). Parent-child chunking uses :func:`run_pipeline_parent_child`."""
     text = raw_text
     chunks: list[str] = [text]
     for stage in pipeline:
@@ -101,6 +127,22 @@ def run_pipeline(
     if not any(s.get("type") == "split" for s in pipeline):
         chunks = [c.strip() for c in [text] if c.strip()]
     return chunks
+
+
+def run_pipeline_parent_child(
+    raw_text: str,
+    pipeline: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Run the ingestion pipeline for the parent-child strategy."""
+    text = raw_text
+    for stage in pipeline:
+        kind = stage.get("type")
+        config = stage.get("config", {}) or {}
+        if kind == "clean":
+            text = _stage_clean(text, config)
+        elif kind == "split_parent_child":
+            return _split_parent_child(text, config)
+    return _split_parent_child(text, {})
 
 
 # --------------------------------------------------------------------------- #
@@ -152,6 +194,87 @@ def rank(
         dot = sum(q_vec.get(t, 0.0) * v for t, v in c_vec.items())
         c_norm = math.sqrt(sum(v * v for v in c_vec.values())) or 1.0
         score = dot / (q_norm * c_norm)
+        if score >= score_threshold and score > 0:
+            scored.append({**chunk, "score": round(score, 4)})
+    scored.sort(key=lambda c: c["score"], reverse=True)
+    return scored[:top_k]
+
+
+# --------------------------------------------------------------------------- #
+# Local embedding (dependency-free dense vectors)
+# --------------------------------------------------------------------------- #
+def embed(text: str, dim: int = 256) -> list[float]:
+    """Produce a deterministic dense embedding using the hashing trick.
+
+    Tokens and character trigrams are hashed into a fixed-dimension vector and
+    L2-normalised. This is a lightweight, offline stand-in for an external
+    embedding service: it captures lexical-semantic overlap in vector space
+    (cosine), behaves differently from sparse TF-IDF, and needs no API key.
+    A real embedding provider can be swapped in here without touching callers.
+    """
+    vec = [0.0] * dim
+    features: list[str] = list(tokenize(text))
+    low = text.lower()
+    for i in range(len(low) - 2):
+        tri = low[i : i + 3]
+        if tri.strip():
+            features.append(f"§{tri}")
+    for feat in features:
+        h = hashlib.md5(feat.encode("utf-8")).digest()
+        idx = int.from_bytes(h[:4], "big") % dim
+        sign = 1.0 if h[4] & 1 else -1.0
+        vec[idx] += sign
+    norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+    return [round(v / norm, 6) for v in vec]
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    return sum(x * y for x, y in zip(a, b))  # both are L2-normalised
+
+
+def vector_rank(
+    query: str,
+    chunks: list[dict[str, Any]],
+    top_k: int = 4,
+    score_threshold: float = 0.0,
+    dim: int = 256,
+) -> list[dict[str, Any]]:
+    """Rank chunks by dense-embedding cosine similarity."""
+    if not chunks:
+        return []
+    q_emb = embed(query, dim)
+    scored: list[dict[str, Any]] = []
+    for chunk in chunks:
+        emb = chunk.get("embedding") or []
+        if not emb:
+            emb = embed(chunk.get("content", ""), dim)
+        score = _cosine(q_emb, emb)
+        if score >= score_threshold and score > 0:
+            scored.append({**chunk, "score": round(score, 4)})
+    scored.sort(key=lambda c: c["score"], reverse=True)
+    return scored[:top_k]
+
+
+def hybrid_rank(
+    query: str,
+    chunks: list[dict[str, Any]],
+    top_k: int = 4,
+    score_threshold: float = 0.0,
+    dim: int = 256,
+    alpha: float = 0.5,
+) -> list[dict[str, Any]]:
+    """Combine keyword (TF-IDF) and vector scores with weight ``alpha`` on the
+    vector component (``1 - alpha`` on keyword)."""
+    if not chunks:
+        return []
+    kw = {c["id"]: c["score"] for c in rank(query, chunks, top_k=len(chunks))}
+    vec = {c["id"]: c["score"] for c in vector_rank(query, chunks, top_k=len(chunks), dim=dim)}
+    scored: list[dict[str, Any]] = []
+    for chunk in chunks:
+        cid = chunk["id"]
+        score = alpha * vec.get(cid, 0.0) + (1 - alpha) * kw.get(cid, 0.0)
         if score >= score_threshold and score > 0:
             scored.append({**chunk, "score": round(score, 4)})
     scored.sort(key=lambda c: c["score"], reverse=True)

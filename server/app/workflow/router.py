@@ -20,7 +20,7 @@ router = APIRouter(prefix="/admin/workflows", tags=["workflow"])
 class WorkflowIn(BaseModel):
     name: str = ""
     description: str = ""
-    icon: str = "🧩"
+    icon: str = "lucide:workflow"
     graph: dict[str, Any] | None = None
     enabled: bool = True
 

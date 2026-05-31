@@ -91,6 +91,50 @@ def update_ontology(ontology_id: str, body: OntologyUpdate, session: Session = D
 @router.delete("/{ontology_id}")
 def delete_ontology(ontology_id: str, session: Session = Depends(get_session)) -> dict:
     ont = _get_or_404(session, Ontology, ontology_id, "Ontology")
+
+    # Cascade-delete all children so no orphaned object types / instances /
+    # actions linger (which would otherwise be served to agents bound to a
+    # re-seeded ontology and silently shadow the fresh data).
+    object_type_ids = [
+        ot.id
+        for ot in session.exec(
+            select(ObjectType).where(ObjectType.ontology_id == ontology_id)
+        )
+    ]
+    if object_type_ids:
+        instance_ids = [
+            inst.id
+            for inst in session.exec(
+                select(ObjectInstance).where(
+                    ObjectInstance.object_type_id.in_(object_type_ids)
+                )
+            )
+        ]
+        if instance_ids:
+            for li in session.exec(
+                select(LinkInstance).where(
+                    LinkInstance.source_object_id.in_(instance_ids)
+                    | LinkInstance.target_object_id.in_(instance_ids)
+                )
+            ):
+                session.delete(li)
+            for inst in session.exec(
+                select(ObjectInstance).where(
+                    ObjectInstance.object_type_id.in_(object_type_ids)
+                )
+            ):
+                session.delete(inst)
+        for pt in session.exec(
+            select(PropertyType).where(
+                PropertyType.object_type_id.in_(object_type_ids)
+            )
+        ):
+            session.delete(pt)
+
+    for model in (LinkType, ActionType, ObjectType, Datasource, Connector):
+        for row in session.exec(select(model).where(model.ontology_id == ontology_id)):
+            session.delete(row)
+
     session.delete(ont)
     session.commit()
     return {"deleted": ontology_id}

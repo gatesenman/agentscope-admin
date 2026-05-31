@@ -51,9 +51,9 @@ def prop(api, name, dtype="string", col="", **extra):
 
 def reset_ontology() -> str:
     existing = _req("GET", "/ontology/").get("items", [])
-    for o in existing:
-        if o["api_name"] == API_NAME:
-            _req("DELETE", f"/ontology/{o['id']}")
+    old_ids = [o["id"] for o in existing if o["api_name"] == API_NAME]
+    for oid in old_ids:
+        _req("DELETE", f"/ontology/{oid}")
     ont = _req(
         "POST",
         "/ontology/",
@@ -64,7 +64,26 @@ def reset_ontology() -> str:
             "订单 / 产品 / 供应商 / 制裁名单 / 风险事件，及其关系与动作。",
         },
     )
-    return ont["id"]
+    new_id = ont["id"]
+    # Re-point any agent bindings that pointed at a now-deleted ontology so
+    # agents keep following the freshly seeded data instead of querying a
+    # stale (deleted) ontology id.
+    if old_ids:
+        bindings = _req("GET", "/ontology/bindings/all").get("items", [])
+        for b in bindings:
+            if b.get("ontology_id") in old_ids:
+                _req(
+                    "PUT",
+                    f"/ontology/bindings/{b['agent_id']}",
+                    json={
+                        "ontology_id": new_id,
+                        "enabled": b.get("enabled", True),
+                        "allowed_object_types": b.get("allowed_object_types", []),
+                        "allowed_actions": b.get("allowed_actions", []),
+                    },
+                )
+                print(f"  rebound agent {b['agent_id']} -> {new_id}")
+    return new_id
 
 
 def main() -> None:

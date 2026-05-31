@@ -8,6 +8,7 @@ export * as mcpApi from './mcp';
 export * as modelApi from './model';
 export * as observabilityApi from './observability';
 export * as ontologyApi from './ontology';
+export * as orchestrationApi from './orchestration';
 export * as publishApi from './publish';
 export * as rbacApi from './rbac';
 export * from './request';

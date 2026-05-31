@@ -21,6 +21,7 @@ from .observability.router import router as observability_router
 from .ontology.db import init_db
 from .ontology.router import router as ontology_router
 from .ontology.tools import ontology_tools_factory
+from .orchestration.router import router as orchestration_router
 from .preferences.router import router as preferences_router
 from .publish.router import router as publish_router
 from .rbac.router import router as rbac_router
@@ -76,6 +77,7 @@ def build_app():
     app.include_router(mcp_registry_router)
     app.include_router(observability_router)
     app.include_router(rbac_router)
+    app.include_router(orchestration_router)
     seed_default_admin()
 
     @app.get("/health", tags=["meta"])

@@ -11,9 +11,9 @@ The frontend is built on [vue-vben-admin](https://github.com/vbenjs/vue-vben-adm
 - **Model configuration (per agent)** — persistent default credential / model, generation parameters (temperature / top_p / max_tokens), a fallback model and a tool-execution **permission mode** (aligned with the Claude Agent SDK's `permission_mode`). See [docs/CONFIG-ALIGNMENT.md](docs/CONFIG-ALIGNMENT.md).
 - **Credentials & models** — manage LLM provider credentials (OpenAI / DashScope / DeepSeek / Anthropic / …) and pick models per session.
 - **Playground** — chat with an agent over an SSE stream, with live tool-call and thinking traces; auto-prefills the agent's saved model defaults and permission mode.
-- **Multi-agent orchestration** — sequential pipelines chaining agents' outputs.
-- **Workflow orchestration (Dify-style)** — a visual DAG canvas (Vue Flow) with `start / llm / agent / knowledge / condition / template / answer` nodes, template variables (`{{node.field}}`), conditional branching and SSE-streamed execution. Backend engine in `server/app/workflow/`.
-- **Knowledge base + pipeline** — knowledge bases with a configurable ingestion pipeline (extract → clean → split → index) and dependency-free TF-IDF retrieval. The same retrieval is reused as a workflow node and as the agent-callable `knowledge_search` tool. Backend in `server/app/knowledge/`.
+- **Multi-agent orchestration** — a team of LLM members run under one of **6 industry-standard patterns**: sequential, parallel, aggregation, router, supervisor (multi-round delegation) and handoff (swarm). SSE-streamed live transcript + final output. Backend in `server/app/orchestration/`.
+- **Workflow orchestration (Dify-style)** — a visual DAG canvas (Vue Flow) covering the **full Dify node catalogue** (triggers, LLM, agent, question-classifier, parameter-extractor, knowledge / knowledge-index / document-extractor / datasource, condition, iteration, loop, variable-aggregator, assigner, code, template, http-request, tool, list-operator, human-input, answer) **plus a Palantir-style `ontology` node** (query / traverse / execute action). Template variables (`{{node.field}}`), multi-branch routing and SSE-streamed execution. Backend engine in `server/app/workflow/`.
+- **Knowledge base + visual pipeline editor** — knowledge bases built by choosing a **chunk strategy** (general / parent-child) × **index method** (keyword / vector / knowledge-graph / hybrid), with a Vue Flow **Knowledge Pipeline** editor covering Dify's node set (datasource → extract → clean → split / parent-child → qa → embed / build-graph → index) and a recall-test panel. The same retrieval is reused as a workflow node and as the agent-callable `knowledge_search` tool. Backend in `server/app/knowledge/`.
 - **CLI** — `agentscope-admin` for serving, seeding and managing agents / knowledge / workflows / published apps / API keys. See [CLI](#cli).
 - **Publishing (Dify-style)** — freeze an agent into a public **App** exposing three integration surfaces, with multi-key management. See [Publishing](#publishing).
 - **Integration center** — ready-to-copy cURL / Python snippets for embedding the API.
@@ -32,6 +32,7 @@ server                FastAPI backend
   app/ontology          Palantir-style ontology (SQLModel + SQLite) and agent tools
   app/knowledge         Knowledge bases, ingestion pipeline, TF-IDF retrieval + tool
   app/workflow          Dify-style DAG workflow model + topological SSE engine
+  app/orchestration     Multi-agent orchestration (6 patterns) + SSE engine
   app/publish           Published apps + API keys (Web App / REST / embed)
   app/dashboard         Aggregate stats
   app/compat_auth       Minimal auth endpoints for the vben demo shell (placeholder identity)

@@ -96,6 +96,16 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        name: 'AgentScopeKnowledgePipeline',
+        path: '/agentscope/knowledge/:id/pipeline',
+        component: () => import('#/views/agentscope/knowledge/pipeline.vue'),
+        meta: {
+          activePath: '/agentscope/knowledge',
+          hideInMenu: true,
+          title: $t('agentscope.menu.knowledge'),
+        },
+      },
+      {
         name: 'AgentScopeMcp',
         path: '/agentscope/mcp',
         component: () => import('#/views/agentscope/mcp/index.vue'),

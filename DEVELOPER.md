@@ -38,6 +38,7 @@ server/app/
   knowledge/         models, pipeline (tokenize/split/index + TF-IDF rank),
                      service, router, tools (knowledge_search agent tool)
   workflow/          models, engine (topological executor + SSE), router
+  orchestration/     models, engine (6 multi-agent patterns + SSE), router
   publish/           models (PublishedApp/AppApiKey), router (admin + public)
   agent_profile/     per-agent model defaults / params / permission_mode
   preferences/       per-user vben UI preference persistence
@@ -94,7 +95,19 @@ The executor (`server/app/workflow/engine.py`) does:
 
 Output is **Server-Sent Events**. Frame types (field `type`): `workflow_started`, `node_started`, `text_delta`, `node_finished`, `workflow_finished` (carries the final `output`), `error`. The frontend client (`src/api/agentscope/workflow.ts`) and the CLI (`workflow run`) both parse these.
 
-Built-in node types: `start`, `llm`, `agent`, `knowledge`, `ontology`, `condition`, `template`, `answer` (alias `end`).
+Built-in node types — the engine covers the **full Dify node catalogue** plus our Palantir-style `ontology` node:
+
+| Group | Node types (`data.type`) |
+| --- | --- |
+| Entry / trigger | `start`, `trigger-webhook`, `trigger-schedule`, `trigger-plugin` |
+| LLM / reasoning | `llm`, `agent`, `question-classifier`, `parameter-extractor` |
+| Knowledge | `knowledge` (retrieval), `knowledge-index` (write-back), `document-extractor`, `datasource` |
+| Logic / control | `condition` (IF/ELSE), `iteration`, `loop`, `variable-aggregator`, `assigner` (variable assign) |
+| Transform / tools | `code`, `template`, `http-request`, `tool`, `list-operator` |
+| Ontology (ours) | `ontology` (query / traverse / execute_action) |
+| Human / output | `human-input`, `answer` (alias `end`) |
+
+The `question-classifier` node emits **one output branch per class** (multi-handle: `sourceHandle` = the class label), mirroring Dify; downstream edges are gated by matching handle the same way `condition` gates `true`/`false`. Trigger nodes are treated like `start` (seeded reachable, inputs land in `self.context["start"]`).
 
 The **`ontology`** node (Palantir-style) runs one of three operations against a bound ontology and is handled by `_run_ontology()` in `engine.py`:
 
@@ -189,9 +202,32 @@ Stages: **extract → clean → split | split_parent_child → [embed | build_gr
 
 Recall testing (`POST /admin/knowledge-bases/{id}/retrieve`) returns method-specific output: scores for vector, parent context for parent-child, matched triples for knowledge-graph. The retrieve panel can override the method per query.
 
-To add a pipeline stage (e.g. a `dedupe` step), extend `run_pipeline()` to handle the new `stage["type"]`, add it to `build_pipeline()` if it should be auto-derived, then mirror it in `buildPreview()` and add a `STAGE_ICON` entry + config card in `views/agentscope/knowledge/index.vue`.
+**Visual pipeline editor** (`views/agentscope/knowledge/pipeline.vue`, route `/agentscope/knowledge/:id/pipeline`, opened from the "流水线编排" button on each KB row): a Vue Flow DAG editor covering the Dify **Knowledge Pipeline** node set — `datasource`, `extract` (document-extractor), `clean`, `split`, `split_parent_child`, `qa` (QA extraction), `embed`, `build_graph` (knowledge graph), `index`. Editing/reordering nodes and saving persists the stage list and triggers a reindex through the same `run_pipeline()` backend.
+
+To add a pipeline stage (e.g. a `dedupe` step), extend `run_pipeline()` to handle the new `stage["type"]`, add it to `build_pipeline()` if it should be auto-derived, then add it to `PIPELINE_NODE_TYPES` + a config card in `pipeline.vue` (and mirror it in `buildPreview()` / `STAGE_ICON` in `views/agentscope/knowledge/index.vue`).
 
 The same retrieval is exposed to agents as the `knowledge_search` tool (`server/app/knowledge/tools.py`), injected via the combined tool factory in `main.py`. Tools must return AgentScope `ToolChunk` objects (not `ToolResponse`) or results are silently dropped.
+
+---
+
+## 7b. Recipe: multi-agent orchestration
+
+The orchestration feature (`server/app/orchestration/`, page `views/agentscope/orchestration/index.vue`, route `/agentscope/orchestration`) runs a team of LLM "members" using one of **6 industry-standard collaboration patterns**. An orchestration is a single SQLite row: `pattern` + a free-form `config` (`{ members: [...], coordinator: {...}, max_rounds: int }`). Each member carries `name`, `role`, `instruction`, and a model binding (`credential_id` / `type` / `model` / `parameters`).
+
+| Pattern (`pattern`) | Behaviour (`engine.py`) | Coordinator? |
+| --- | --- | --- | --- |
+| `sequential` | Members run in order; each sees the previous output via `{{carry}}`. | no |
+| `parallel` | All members handle the same task concurrently (`asyncio.gather`); outputs concatenated. | no |
+| `aggregation` | Parallel fan-out, then an aggregator LLM synthesises one final answer. | yes |
+| `router` | A router LLM picks the single best-fit member from the roster to answer. | yes |
+| `supervisor` | A supervisor LLM delegates to workers over multiple rounds (`DELEGATE: <name> | <task>`/`FINAL: <answer>`), up to `max_rounds`. | yes |
+| `handoff` | Swarm-style: members hand control to each other (`HANDOFF: <colleague>`) until one completes. | no |
+
+Execution is **SSE** (`POST /admin/orchestrations/{id}/run`, body `{query}`). Frame `type`s: `member_started` (`member`, `role`), `member_finished` (`member`, `text`), `finished` (`output`), `error` (`message`). The frontend (`src/api/agentscope/orchestration.ts → runOrchestration()`) parses the stream and renders a live transcript + final output.
+
+Free-text member selection from coordinator LLMs is resolved with `_match_member()` (fuzzy name match), so the LLM doesn't need to emit exact IDs.
+
+**To add a new pattern:** implement an `async def _run_<pattern>(self, query)` generator method on `OrchestrationEngine` (yield the SSE frames above), add a dispatch branch in `OrchestrationEngine.run()`, add the pattern to `PATTERNS` in `router.py`'s `/patterns` endpoint, and add a matching entry (with a lucide icon — no emoji) to the `PATTERNS` const in `orchestration/index.vue`. Set `usesCoordinator()` to `true` for it if it needs the coordinator config block.
 
 ---
 

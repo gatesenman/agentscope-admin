@@ -12,6 +12,7 @@ import type {
 import type { CredentialRecord, ModelCard } from '#/api/agentscope/types';
 
 import { computed, onMounted, reactive, ref, toRaw } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -117,6 +118,7 @@ function buildPreview(
   ];
 }
 
+const router = useRouter();
 const loading = ref(false);
 const items = ref<KnowledgeBaseListItem[]>([]);
 const credentials = ref<CredentialRecord[]>([]);
@@ -439,10 +441,19 @@ onMounted(load);
           </template>
         </ElTableColumn>
         <ElTableColumn label="Top-K" width="80" prop="kb.top_k" />
-        <ElTableColumn :label="$t('agentscope.common.actions')" width="180">
+        <ElTableColumn :label="$t('agentscope.common.actions')" width="240">
           <template #default="{ row }">
             <ElButton link type="primary" @click="openManage(row.kb)">
               {{ $t('agentscope.knowledge.manage') }}
+            </ElButton>
+            <ElButton
+              link
+              type="primary"
+              @click="
+                router.push(`/agentscope/knowledge/${row.kb.id}/pipeline`)
+              "
+            >
+              流水线编排
             </ElButton>
             <ElPopconfirm
               :title="$t('agentscope.common.confirmDelete')"

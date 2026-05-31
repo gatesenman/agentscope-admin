@@ -85,6 +85,10 @@ export function listKnowledgeBases() {
   }>('/admin/knowledge-bases/');
 }
 
+export function getKnowledgeBase(kbId: string) {
+  return agentScopeClient.get<KnowledgeBase>(`/admin/knowledge-bases/${kbId}`);
+}
+
 export function createKnowledgeBase(payload: Partial<KnowledgeBase>) {
   return agentScopeClient.post<KnowledgeBase>(
     '/admin/knowledge-bases/',

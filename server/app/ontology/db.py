@@ -53,6 +53,18 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "is_parent": "BOOLEAN DEFAULT 0",
         "embedding": "JSON",
     },
+    "object_type": {
+        "datasource_id": "VARCHAR",
+        "backing_table": "VARCHAR DEFAULT ''",
+    },
+    "property_type": {
+        "column_mapping": "VARCHAR DEFAULT ''",
+    },
+    "action_type": {
+        "connector_id": "VARCHAR",
+        "connector_operation": "VARCHAR DEFAULT ''",
+        "parameter_bindings": "JSON",
+    },
 }
 
 

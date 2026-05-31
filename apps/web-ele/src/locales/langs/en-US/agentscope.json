@@ -102,7 +102,20 @@
     "newActionType": "New Action Type",
     "newObject": "New Object",
     "query": "Semantic Query",
-    "selectOntology": "Select an ontology on the left"
+    "selectOntology": "Select an ontology on the left",
+    "datasources": "Datasources",
+    "connectors": "Connectors",
+    "datasource": "Datasource",
+    "backingTable": "Table/Dataset",
+    "columns": "Columns",
+    "columnMapping": "Column Mapping",
+    "kind": "Kind",
+    "operations": "Operations",
+    "writesBackTo": "Writes Back To",
+    "noWriteBack": "Ontology-only",
+    "propertyColumnMapping": "Property ↔ Column Mapping",
+    "connection": "Connection",
+    "noDatasource": "No datasource"
   },
   "credential": {
     "provider": "Provider",

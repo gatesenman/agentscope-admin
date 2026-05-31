@@ -10,6 +10,8 @@ from sqlmodel import Session, select
 from .models import (
     ActionEffect,
     ActionType,
+    Connector,
+    ConnectorKind,
     LinkInstance,
     LinkType,
     ObjectInstance,
@@ -20,6 +22,93 @@ from .models import (
 
 class OntologyError(Exception):
     """Raised on invalid ontology operations."""
+
+
+def _invoke_connector(
+    session: Session,
+    action: ActionType,
+    parameters: dict[str, Any],
+    object_id: str | None,
+) -> dict[str, Any] | None:
+    """Invoke the connector operation bound to an action, if any.
+
+    Action parameters are mapped onto the operation's fields via
+    ``action.parameter_bindings`` (action_param -> operation_field). For REST/
+    webhook connectors with a ``base_url`` the call is attempted over HTTP
+    (best-effort, short timeout); otherwise the call is *simulated* and the
+    resolved payload is returned so the result is deterministic for demos and
+    offline environments. A connector failure never aborts the ontology
+    mutation — the error is captured in the returned record.
+    """
+    if not action.connector_id or not action.connector_operation:
+        return None
+    connector = session.get(Connector, action.connector_id)
+    if connector is None:
+        return {"status": "error", "error": "connector not found"}
+
+    operation = next(
+        (
+            op
+            for op in (connector.operations or [])
+            if op.get("api_name") == action.connector_operation
+        ),
+        None,
+    )
+    if operation is None:
+        return {
+            "status": "error",
+            "connector": connector.api_name,
+            "operation": action.connector_operation,
+            "error": "operation not found on connector",
+        }
+
+    # Map action parameters onto operation fields.
+    bindings = action.parameter_bindings or {}
+    payload: dict[str, Any] = {}
+    for action_param, value in parameters.items():
+        field = bindings.get(action_param, action_param)
+        payload[field] = value
+    if object_id:
+        payload.setdefault("object_id", object_id)
+
+    record: dict[str, Any] = {
+        "connector": connector.api_name,
+        "kind": connector.kind,
+        "operation": operation.get("api_name"),
+        "method": operation.get("method", "POST"),
+        "path": operation.get("path", ""),
+        "payload": payload,
+    }
+
+    config = connector.config or {}
+    base_url = config.get("base_url")
+    simulate = bool(config.get("simulate"))
+    if (
+        not simulate
+        and connector.kind in (ConnectorKind.REST, ConnectorKind.WEBHOOK)
+        and base_url
+    ):
+        url = f"{str(base_url).rstrip('/')}/{operation.get('path', '').lstrip('/')}"
+        try:
+            import httpx
+
+            resp = httpx.request(
+                operation.get("method", "POST"),
+                url,
+                json=payload,
+                headers=config.get("headers") or {},
+                timeout=5.0,
+            )
+            record["status"] = "sent"
+            record["http_status"] = resp.status_code
+        except Exception as exc:  # noqa: BLE001 — connector errors must not abort the action
+            record["status"] = "error"
+            record["error"] = str(exc)
+    else:
+        # Simulate mode (or no reachable endpoint): resolve the call
+        # deterministically so demos/offline runs still show the write-back.
+        record["status"] = "simulated"
+    return record
 
 
 def get_object_type_by_name(
@@ -151,6 +240,12 @@ def execute_action(
         raise OntologyError(f"Unknown action: {action_name!r}")
 
     parameters = parameters or {}
+    connector_result = _invoke_connector(session, action, parameters, object_id)
+
+    def _with_connector(result: dict[str, Any]) -> dict[str, Any]:
+        if connector_result is not None:
+            result["connector_result"] = connector_result
+        return result
 
     if action.effect == ActionEffect.CREATE:
         if not action.object_type_id:
@@ -161,7 +256,7 @@ def execute_action(
         session.add(instance)
         session.commit()
         session.refresh(instance)
-        return {"action": action_name, "effect": "create", "object": {"id": instance.id, "properties": instance.properties}}
+        return _with_connector({"action": action_name, "effect": "create", "object": {"id": instance.id, "properties": instance.properties}})
 
     if action.effect == ActionEffect.MODIFY:
         if not object_id:
@@ -175,7 +270,7 @@ def execute_action(
         session.add(instance)
         session.commit()
         session.refresh(instance)
-        return {"action": action_name, "effect": "modify", "object": {"id": instance.id, "properties": instance.properties}}
+        return _with_connector({"action": action_name, "effect": "modify", "object": {"id": instance.id, "properties": instance.properties}})
 
     if action.effect == ActionEffect.DELETE:
         if not object_id:
@@ -185,6 +280,6 @@ def execute_action(
             raise OntologyError(f"Object not found: {object_id!r}")
         session.delete(instance)
         session.commit()
-        return {"action": action_name, "effect": "delete", "object_id": object_id}
+        return _with_connector({"action": action_name, "effect": "delete", "object_id": object_id})
 
-    return {"action": action_name, "effect": "custom", "parameters": parameters}
+    return _with_connector({"action": action_name, "effect": "custom", "parameters": parameters})

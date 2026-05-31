@@ -37,13 +37,16 @@ def _req(method: str, path: str, **kw):
     return resp.json() if resp.text else {}
 
 
-def prop(api, name, dtype="string", **extra):
-    return {
+def prop(api, name, dtype="string", col="", **extra):
+    p = {
         "api_name": api,
         "display_name": name,
         "data_type": dtype,
         **extra,
     }
+    if col:
+        p["column_mapping"] = col
+    return p
 
 
 def reset_ontology() -> str:
@@ -68,10 +71,72 @@ def main() -> None:
     oid = reset_ontology()
     print(f"ontology {oid}")
 
-    # ---- Object types -------------------------------------------------- #
+    # ---- Datasources (backing data sources for object types) ----------- #
+    datasources: dict[str, dict] = {}
+
+    def add_ds(api, name, kind, connection, columns):
+        ds = _req(
+            "POST",
+            f"/ontology/{oid}/datasources",
+            json={
+                "api_name": api,
+                "display_name": name,
+                "kind": kind,
+                "connection": connection,
+                "columns": [{"name": c[0], "data_type": c[1]} for c in columns],
+            },
+        )
+        datasources[api] = ds
+        print(f"  datasource {api} -> {ds['id']}")
+        return ds
+
+    add_ds(
+        "crm", "CRM 客户主数据", "sql",
+        {"dsn": "postgres://crm.internal/crm", "schema": "public"},
+        [
+            ("ORG_ID", "string"), ("ORG_NAME", "string"), ("INDUSTRY", "string"),
+            ("COUNTRY", "string"), ("REG_CAPITAL", "double"), ("RISK_LEVEL", "string"),
+            ("EST_DATE", "date"), ("PERSON_ID", "string"), ("FULL_NAME", "string"),
+            ("ROLE", "string"), ("NATIONALITY", "string"), ("PEP_FLAG", "boolean"),
+            ("EMAIL", "string"),
+        ],
+    )
+    add_ds(
+        "core_banking", "核心银行系统", "sql",
+        {"dsn": "oracle://corebank.internal/CBS", "schema": "CBS"},
+        [
+            ("ACCT_ID", "string"), ("ACCT_NO", "string"), ("CCY", "string"),
+            ("BAL_AMT", "double"), ("ACCT_STATUS", "string"), ("OPEN_DT", "date"),
+            ("TXN_ID", "string"), ("AMT", "double"), ("CHANNEL", "string"),
+            ("TXN_STATUS", "string"), ("RISK_SCORE", "double"), ("TXN_TS", "timestamp"),
+        ],
+    )
+    add_ds(
+        "erp", "ERP 供应链", "dataset",
+        {"path": "/datasets/erp/supply_chain", "format": "parquet"},
+        [
+            ("PRD_ID", "string"), ("PRD_NAME", "string"), ("CATEGORY", "string"),
+            ("UNIT_PRICE", "double"), ("ORD_ID", "string"), ("ORDER_NO", "string"),
+            ("TOTAL_AMT", "double"), ("ORD_STATUS", "string"), ("ORDER_DT", "date"),
+            ("SUP_ID", "string"), ("SUP_NAME", "string"), ("TIER", "integer"),
+            ("RELIABILITY", "double"),
+        ],
+    )
+    add_ds(
+        "compliance_feed", "合规风险数据源", "rest_api",
+        {"base_url": "https://compliance.internal/api", "path": "/feed"},
+        [
+            ("SAN_ID", "string"), ("LIST_NAME", "string"), ("REASON", "string"),
+            ("ADDED_DT", "date"), ("RSK_ID", "string"), ("TITLE", "string"),
+            ("EVENT_TYPE", "string"), ("SEVERITY", "string"), ("STATUS", "string"),
+            ("DETECTED_TS", "timestamp"), ("DESCRIPTION", "string"),
+        ],
+    )
+
+    # ---- Object types (each backed by a datasource) -------------------- #
     object_types: dict[str, dict] = {}
 
-    def add_ot(api, name, icon, color, title, props):
+    def add_ot(api, name, icon, color, title, ds, table, props):
         ot = _req(
             "POST",
             f"/ontology/{oid}/object-types",
@@ -82,6 +147,8 @@ def main() -> None:
                 "color": color,
                 "primary_key_property": "id",
                 "title_property": title,
+                "datasource_id": datasources[ds]["id"],
+                "backing_table": table,
                 "properties": props,
             },
         )
@@ -90,99 +157,99 @@ def main() -> None:
         return ot
 
     add_ot(
-        "organization", "组织", "Building2", "#3b82f6", "name",
+        "organization", "组织", "Building2", "#3b82f6", "name", "crm", "ORGANIZATIONS",
         [
-            prop("id", "ID", required=True, is_primary_key=True),
-            prop("name", "名称", required=True, is_title=True),
-            prop("industry", "行业"),
-            prop("country", "国家/地区"),
-            prop("registered_capital", "注册资本", "double"),
-            prop("risk_level", "风险等级"),
-            prop("established_date", "成立日期", "date"),
+            prop("id", "ID", required=True, is_primary_key=True, col="ORG_ID"),
+            prop("name", "名称", required=True, is_title=True, col="ORG_NAME"),
+            prop("industry", "行业", col="INDUSTRY"),
+            prop("country", "国家/地区", col="COUNTRY"),
+            prop("registered_capital", "注册资本", "double", col="REG_CAPITAL"),
+            prop("risk_level", "风险等级", col="RISK_LEVEL"),
+            prop("established_date", "成立日期", "date", col="EST_DATE"),
         ],
     )
     add_ot(
-        "person", "人员", "User", "#06b6d4", "name",
+        "person", "人员", "User", "#06b6d4", "name", "crm", "PERSONS",
         [
-            prop("id", "ID", required=True, is_primary_key=True),
-            prop("name", "姓名", required=True, is_title=True),
-            prop("role", "角色"),
-            prop("nationality", "国籍"),
-            prop("pep_flag", "政治公众人物", "boolean"),
-            prop("email", "邮箱"),
+            prop("id", "ID", required=True, is_primary_key=True, col="PERSON_ID"),
+            prop("name", "姓名", required=True, is_title=True, col="FULL_NAME"),
+            prop("role", "角色", col="ROLE"),
+            prop("nationality", "国籍", col="NATIONALITY"),
+            prop("pep_flag", "政治公众人物", "boolean", col="PEP_FLAG"),
+            prop("email", "邮箱", col="EMAIL"),
         ],
     )
     add_ot(
-        "account", "银行账户", "CreditCard", "#10b981", "account_no",
+        "account", "银行账户", "CreditCard", "#10b981", "account_no", "core_banking", "ACCOUNTS",
         [
-            prop("id", "ID", required=True, is_primary_key=True),
-            prop("account_no", "账号", required=True, is_title=True),
-            prop("currency", "币种"),
-            prop("balance", "余额", "double"),
-            prop("status", "状态"),
-            prop("opened_date", "开户日期", "date"),
+            prop("id", "ID", required=True, is_primary_key=True, col="ACCT_ID"),
+            prop("account_no", "账号", required=True, is_title=True, col="ACCT_NO"),
+            prop("currency", "币种", col="CCY"),
+            prop("balance", "余额", "double", col="BAL_AMT"),
+            prop("status", "状态", col="ACCT_STATUS"),
+            prop("opened_date", "开户日期", "date", col="OPEN_DT"),
         ],
     )
     add_ot(
-        "transaction", "交易", "ArrowLeftRight", "#f59e0b", "id",
+        "transaction", "交易", "ArrowLeftRight", "#f59e0b", "id", "core_banking", "TRANSACTIONS",
         [
-            prop("id", "ID", required=True, is_primary_key=True, is_title=True),
-            prop("amount", "金额", "double"),
-            prop("currency", "币种"),
-            prop("channel", "渠道"),
-            prop("status", "状态"),
-            prop("risk_score", "风险评分", "double"),
-            prop("occurred_at", "发生时间", "timestamp"),
+            prop("id", "ID", required=True, is_primary_key=True, is_title=True, col="TXN_ID"),
+            prop("amount", "金额", "double", col="AMT"),
+            prop("currency", "币种", col="CCY"),
+            prop("channel", "渠道", col="CHANNEL"),
+            prop("status", "状态", col="TXN_STATUS"),
+            prop("risk_score", "风险评分", "double", col="RISK_SCORE"),
+            prop("occurred_at", "发生时间", "timestamp", col="TXN_TS"),
         ],
     )
     add_ot(
-        "product", "产品", "Package", "#8b5cf6", "name",
+        "product", "产品", "Package", "#8b5cf6", "name", "erp", "PRODUCTS",
         [
-            prop("id", "ID", required=True, is_primary_key=True),
-            prop("name", "名称", required=True, is_title=True),
-            prop("category", "类别"),
-            prop("unit_price", "单价", "double"),
+            prop("id", "ID", required=True, is_primary_key=True, col="PRD_ID"),
+            prop("name", "名称", required=True, is_title=True, col="PRD_NAME"),
+            prop("category", "类别", col="CATEGORY"),
+            prop("unit_price", "单价", "double", col="UNIT_PRICE"),
         ],
     )
     add_ot(
-        "order", "订单", "ShoppingCart", "#ec4899", "order_no",
+        "order", "订单", "ShoppingCart", "#ec4899", "order_no", "erp", "ORDERS",
         [
-            prop("id", "ID", required=True, is_primary_key=True),
-            prop("order_no", "订单号", required=True, is_title=True),
-            prop("total_amount", "总金额", "double"),
-            prop("status", "状态"),
-            prop("order_date", "下单日期", "date"),
+            prop("id", "ID", required=True, is_primary_key=True, col="ORD_ID"),
+            prop("order_no", "订单号", required=True, is_title=True, col="ORDER_NO"),
+            prop("total_amount", "总金额", "double", col="TOTAL_AMT"),
+            prop("status", "状态", col="ORD_STATUS"),
+            prop("order_date", "下单日期", "date", col="ORDER_DT"),
         ],
     )
     add_ot(
-        "supplier", "供应商", "Truck", "#14b8a6", "name",
+        "supplier", "供应商", "Truck", "#14b8a6", "name", "erp", "SUPPLIERS",
         [
-            prop("id", "ID", required=True, is_primary_key=True),
-            prop("name", "名称", required=True, is_title=True),
-            prop("country", "国家/地区"),
-            prop("tier", "层级", "integer"),
-            prop("reliability_score", "可靠度", "double"),
+            prop("id", "ID", required=True, is_primary_key=True, col="SUP_ID"),
+            prop("name", "名称", required=True, is_title=True, col="SUP_NAME"),
+            prop("country", "国家/地区", col="COUNTRY"),
+            prop("tier", "层级", "integer", col="TIER"),
+            prop("reliability_score", "可靠度", "double", col="RELIABILITY"),
         ],
     )
     add_ot(
-        "sanction", "制裁名单", "ShieldAlert", "#ef4444", "list_name",
+        "sanction", "制裁名单", "ShieldAlert", "#ef4444", "list_name", "compliance_feed", "SANCTIONS",
         [
-            prop("id", "ID", required=True, is_primary_key=True),
-            prop("list_name", "名单", required=True, is_title=True),
-            prop("reason", "原因"),
-            prop("added_date", "加入日期", "date"),
+            prop("id", "ID", required=True, is_primary_key=True, col="SAN_ID"),
+            prop("list_name", "名单", required=True, is_title=True, col="LIST_NAME"),
+            prop("reason", "原因", col="REASON"),
+            prop("added_date", "加入日期", "date", col="ADDED_DT"),
         ],
     )
     add_ot(
-        "risk_event", "风险事件", "AlertTriangle", "#dc2626", "title",
+        "risk_event", "风险事件", "AlertTriangle", "#dc2626", "title", "compliance_feed", "RISK_EVENTS",
         [
-            prop("id", "ID", required=True, is_primary_key=True),
-            prop("title", "标题", required=True, is_title=True),
-            prop("event_type", "类型"),
-            prop("severity", "严重度"),
-            prop("status", "状态"),
-            prop("detected_at", "检测时间", "timestamp"),
-            prop("description", "描述"),
+            prop("id", "ID", required=True, is_primary_key=True, col="RSK_ID"),
+            prop("title", "标题", required=True, is_title=True, col="TITLE"),
+            prop("event_type", "类型", col="EVENT_TYPE"),
+            prop("severity", "严重度", col="SEVERITY"),
+            prop("status", "状态", col="STATUS"),
+            prop("detected_at", "检测时间", "timestamp", col="DETECTED_TS"),
+            prop("description", "描述", col="DESCRIPTION"),
         ],
     )
 
@@ -215,8 +282,84 @@ def main() -> None:
     add_link("flags_txn", "标记交易", "risk_event", "transaction", "one_to_many")
     add_link("involves_org", "涉及组织", "risk_event", "organization", "many_to_many")
 
-    # ---- Action types -------------------------------------------------- #
-    def add_action(api, name, ot, effect, params):
+    # ---- Connectors (external systems actions write back to) ----------- #
+    connectors: dict[str, dict] = {}
+
+    def add_connector(api, name, kind, config, operations):
+        c = _req(
+            "POST",
+            f"/ontology/{oid}/connectors",
+            json={
+                "api_name": api,
+                "display_name": name,
+                "kind": kind,
+                "config": config,
+                "operations": operations,
+            },
+        )
+        connectors[api] = c
+        print(f"  connector {api} -> {c['id']}")
+        return c
+
+    add_connector(
+        "payments_core", "支付核心系统", "rest",
+        {"base_url": "https://corebank.internal/api", "headers": {}, "simulate": True},
+        [
+            {
+                "api_name": "freeze",
+                "display_name": "冻结账户",
+                "method": "POST",
+                "path": "/accounts/{object_id}/freeze",
+                "description": "冻结指定账户并记录原因",
+                "params": ["freeze_reason"],
+            },
+        ],
+    )
+    add_connector(
+        "case_management", "工单/立案系统", "rest",
+        {"base_url": "https://casemgmt.internal/api", "headers": {}, "simulate": True},
+        [
+            {
+                "api_name": "create_case",
+                "display_name": "创建调查工单",
+                "method": "POST",
+                "path": "/cases",
+                "description": "在工单系统中创建一条调查记录",
+                "params": ["case_title", "case_severity", "case_detail"],
+            },
+        ],
+    )
+    add_connector(
+        "aml_engine", "反洗钱规则引擎", "rest",
+        {"base_url": "https://aml.internal/api", "headers": {}, "simulate": True},
+        [
+            {
+                "api_name": "flag",
+                "display_name": "标记可疑交易",
+                "method": "POST",
+                "path": "/transactions/{object_id}/flag",
+                "description": "向反洗钱引擎上报可疑交易",
+                "params": ["score", "note"],
+            },
+        ],
+    )
+    add_connector(
+        "notification", "通知中心", "webhook",
+        {"base_url": "https://notify.internal/hooks", "headers": {}, "simulate": True},
+        [
+            {
+                "api_name": "notify",
+                "display_name": "发送告警通知",
+                "method": "POST",
+                "path": "/alerts",
+                "description": "推送供应商封禁等合规告警",
+                "params": ["message"],
+            },
+        ],
+    )
+
+    # ---- Action types (bound to connector operations for write-back) --- #
+    def add_action(api, name, ot, effect, params, connector=None, operation="", bindings=None):
         at = _req(
             "POST",
             f"/ontology/{oid}/action-types",
@@ -226,6 +369,9 @@ def main() -> None:
                 "object_type_id": object_types[ot]["id"] if ot else None,
                 "effect": effect,
                 "parameters": params,
+                "connector_id": connectors[connector]["id"] if connector else None,
+                "connector_operation": operation,
+                "parameter_bindings": bindings or {},
             },
         )
         print(f"  action-type {api}")
@@ -234,6 +380,8 @@ def main() -> None:
     add_action(
         "freeze_account", "冻结账户", "account", "modify",
         {"reason": {"type": "string", "description": "冻结原因"}},
+        connector="payments_core", operation="freeze",
+        bindings={"reason": "freeze_reason"},
     )
     add_action(
         "flag_transaction", "标记可疑交易", "transaction", "modify",
@@ -241,6 +389,8 @@ def main() -> None:
             "risk_score": {"type": "number", "description": "风险评分"},
             "reason": {"type": "string", "description": "原因"},
         },
+        connector="aml_engine", operation="flag",
+        bindings={"risk_score": "score", "reason": "note"},
     )
     add_action(
         "open_investigation", "立案调查", "risk_event", "create",
@@ -249,6 +399,8 @@ def main() -> None:
             "severity": {"type": "string"},
             "description": {"type": "string"},
         },
+        connector="case_management", operation="create_case",
+        bindings={"title": "case_title", "severity": "case_severity", "description": "case_detail"},
     )
     add_action(
         "escalate_risk_event", "升级风险事件", "risk_event", "modify",
@@ -257,6 +409,8 @@ def main() -> None:
     add_action(
         "block_supplier", "封禁供应商", "supplier", "modify",
         {"reason": {"type": "string"}},
+        connector="notification", operation="notify",
+        bindings={"reason": "message"},
     )
 
     # ---- Object instances ---------------------------------------------- #

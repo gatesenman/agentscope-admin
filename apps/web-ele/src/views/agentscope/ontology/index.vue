@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 import type {
   ActionType,
+  Connector,
+  Datasource,
   LinkType,
   ObjectInstance,
   ObjectType,
@@ -58,6 +60,8 @@ const activeTab = ref('objectTypes');
 const objectTypes = ref<ObjectType[]>([]);
 const linkTypes = ref<LinkType[]>([]);
 const actionTypes = ref<ActionType[]>([]);
+const datasources = ref<Datasource[]>([]);
+const connectors = ref<Connector[]>([]);
 const graph = ref<OntologyGraphData>();
 
 const selectedObjectType = ref<ObjectType>();
@@ -128,14 +132,18 @@ async function selectOntology(id: string) {
 
 async function refreshAll() {
   if (!currentId.value) return;
-  const [ot, lt, at] = await Promise.all([
+  const [ot, lt, at, ds, cn] = await Promise.all([
     ontologyApi.listObjectTypes(currentId.value),
     ontologyApi.listLinkTypes(currentId.value),
     ontologyApi.listActionTypes(currentId.value),
+    ontologyApi.listDatasources(currentId.value),
+    ontologyApi.listConnectors(currentId.value),
   ]);
   objectTypes.value = ot.items ?? [];
   linkTypes.value = lt.items ?? [];
   actionTypes.value = at.items ?? [];
+  datasources.value = ds.items ?? [];
+  connectors.value = cn.items ?? [];
   graph.value = await ontologyApi.getGraph(currentId.value);
   if (objectTypes.value.length > 0) {
     selectedObjectType.value =
@@ -305,6 +313,21 @@ function typeName(id: string) {
   return objectTypes.value.find((t) => t.id === id)?.display_name ?? id;
 }
 
+function datasourceOf(row: ObjectType) {
+  return datasources.value.find((d) => d.id === row.datasource_id);
+}
+
+function connectorOf(row: ActionType) {
+  return connectors.value.find((c) => c.id === row.connector_id);
+}
+
+function operationLabel(row: ActionType) {
+  const cn = connectorOf(row);
+  if (!cn || !row.connector_operation) return '';
+  const op = cn.operations.find((o) => o.api_name === row.connector_operation);
+  return `${cn.api_name}.${op?.api_name ?? row.connector_operation}`;
+}
+
 async function selectObjectTypeRow(row: ObjectType) {
   selectedObjectType.value = row;
   searchText.value = '';
@@ -390,8 +413,37 @@ onMounted(loadOntologies);
             <ElTable
               :data="objectTypes"
               highlight-current-row
+              row-key="id"
               @row-click="selectObjectTypeRow"
             >
+              <ElTableColumn type="expand">
+                <template #default="{ row }">
+                  <div class="px-6 py-2">
+                    <div class="text-foreground/60 mb-2 text-xs font-medium">
+                      {{ $t('agentscope.ontology.propertyColumnMapping') }}
+                    </div>
+                    <ElTable :data="row.properties" size="small">
+                      <ElTableColumn
+                        :label="$t('agentscope.ontology.apiName')"
+                        prop="api_name"
+                      />
+                      <ElTableColumn
+                        :label="$t('agentscope.ontology.dataType')"
+                        prop="data_type"
+                      />
+                      <ElTableColumn
+                        :label="$t('agentscope.ontology.columnMapping')"
+                      >
+                        <template #default="{ row: p }">
+                          <ElTag size="small" type="info">
+                            {{ p.column_mapping || p.api_name }}
+                          </ElTag>
+                        </template>
+                      </ElTableColumn>
+                    </ElTable>
+                  </div>
+                </template>
+              </ElTableColumn>
               <ElTableColumn
                 :label="$t('agentscope.ontology.displayName')"
                 prop="display_name"
@@ -400,6 +452,21 @@ onMounted(loadOntologies);
                 :label="$t('agentscope.ontology.apiName')"
                 prop="api_name"
               />
+              <ElTableColumn :label="$t('agentscope.ontology.datasource')">
+                <template #default="{ row }">
+                  <template v-if="datasourceOf(row)">
+                    <ElTag size="small" type="success">
+                      {{ datasourceOf(row)?.api_name }}
+                    </ElTag>
+                    <span class="text-foreground/50 ml-1 text-xs">
+                      {{ row.backing_table }}
+                    </span>
+                  </template>
+                  <span v-else class="text-foreground/40 text-xs">
+                    {{ $t('agentscope.ontology.noDatasource') }}
+                  </span>
+                </template>
+              </ElTableColumn>
               <ElTableColumn :label="$t('agentscope.ontology.properties')">
                 <template #default="{ row }">
                   <ElTag
@@ -504,6 +571,16 @@ onMounted(loadOntologies);
                 :label="$t('agentscope.ontology.effect')"
                 prop="effect"
               />
+              <ElTableColumn :label="$t('agentscope.ontology.writesBackTo')">
+                <template #default="{ row }">
+                  <ElTag v-if="connectorOf(row)" size="small" type="warning">
+                    {{ operationLabel(row) }}
+                  </ElTag>
+                  <span v-else class="text-foreground/40 text-xs">
+                    {{ $t('agentscope.ontology.noWriteBack') }}
+                  </span>
+                </template>
+              </ElTableColumn>
               <ElTableColumn
                 :label="$t('agentscope.common.actions')"
                 width="100"
@@ -522,6 +599,110 @@ onMounted(loadOntologies);
                 </template>
               </ElTableColumn>
             </ElTable>
+          </ElTabPane>
+
+          <!-- Datasources -->
+          <ElTabPane
+            :label="$t('agentscope.ontology.datasources')"
+            name="datasources"
+          >
+            <ElTable :data="datasources" row-key="id">
+              <ElTableColumn type="expand">
+                <template #default="{ row }">
+                  <div class="px-6 py-2">
+                    <div class="text-foreground/60 mb-2 text-xs font-medium">
+                      {{ $t('agentscope.ontology.columns') }}
+                    </div>
+                    <ElTable :data="row.columns" size="small">
+                      <ElTableColumn label="name" prop="name" />
+                      <ElTableColumn label="data_type" prop="data_type" />
+                    </ElTable>
+                  </div>
+                </template>
+              </ElTableColumn>
+              <ElTableColumn
+                :label="$t('agentscope.ontology.displayName')"
+                prop="display_name"
+              />
+              <ElTableColumn
+                :label="$t('agentscope.ontology.apiName')"
+                prop="api_name"
+              />
+              <ElTableColumn :label="$t('agentscope.ontology.kind')">
+                <template #default="{ row }">
+                  <ElTag size="small">{{ row.kind }}</ElTag>
+                </template>
+              </ElTableColumn>
+              <ElTableColumn :label="$t('agentscope.ontology.columns')">
+                <template #default="{ row }">
+                  {{ row.columns.length }}
+                </template>
+              </ElTableColumn>
+            </ElTable>
+            <ElEmpty
+              v-if="datasources.length === 0"
+              :description="$t('agentscope.common.empty')"
+              :image-size="60"
+            />
+          </ElTabPane>
+
+          <!-- Connectors -->
+          <ElTabPane
+            :label="$t('agentscope.ontology.connectors')"
+            name="connectors"
+          >
+            <ElTable :data="connectors" row-key="id">
+              <ElTableColumn type="expand">
+                <template #default="{ row }">
+                  <div class="px-6 py-2">
+                    <div class="text-foreground/60 mb-2 text-xs font-medium">
+                      {{ $t('agentscope.ontology.operations') }}
+                    </div>
+                    <ElTable :data="row.operations" size="small">
+                      <ElTableColumn label="api_name" prop="api_name" />
+                      <ElTableColumn label="method" prop="method" />
+                      <ElTableColumn label="path" prop="path" />
+                      <ElTableColumn label="params">
+                        <template #default="{ row: op }">
+                          <ElTag
+                            v-for="pp in op.params ?? []"
+                            :key="pp"
+                            class="mr-1"
+                            size="small"
+                            type="info"
+                          >
+                            {{ pp }}
+                          </ElTag>
+                        </template>
+                      </ElTableColumn>
+                    </ElTable>
+                  </div>
+                </template>
+              </ElTableColumn>
+              <ElTableColumn
+                :label="$t('agentscope.ontology.displayName')"
+                prop="display_name"
+              />
+              <ElTableColumn
+                :label="$t('agentscope.ontology.apiName')"
+                prop="api_name"
+              />
+              <ElTableColumn :label="$t('agentscope.ontology.kind')">
+                <template #default="{ row }">
+                  <ElTag size="small" type="warning">{{ row.kind }}</ElTag>
+                </template>
+              </ElTableColumn>
+              <ElTableColumn :label="$t('agentscope.ontology.operations')">
+                <template #default="{ row }">
+                  {{ row.operations.length }}
+                </template>
+              </ElTableColumn>
+            </ElTable>
+            <ElEmpty
+              v-if="connectors.length === 0"
+              :description="$t('agentscope.common.empty')"
+              :image-size="60"
+            />
           </ElTabPane>
 
           <!-- Objects -->

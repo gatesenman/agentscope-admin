@@ -121,6 +121,8 @@ export interface PropertyType {
   is_title: boolean;
   description: string;
   sort_order: number;
+  /** Name of the column in the backing datasource (empty = use api_name). */
+  column_mapping?: string;
 }
 
 export interface ObjectType {
@@ -134,6 +136,52 @@ export interface ObjectType {
   primary_key_property: string;
   title_property?: string;
   properties: PropertyType[];
+  /** Backing datasource (data lineage). */
+  datasource_id?: string;
+  /** Table/dataset/endpoint within the datasource. */
+  backing_table?: string;
+}
+
+export type DatasourceKind = 'dataset' | 'inline' | 'rest_api' | 'sql';
+
+export interface DatasourceColumn {
+  name: string;
+  data_type: string;
+}
+
+export interface Datasource {
+  id: string;
+  ontology_id: string;
+  api_name: string;
+  display_name: string;
+  description: string;
+  kind: DatasourceKind;
+  connection: Record<string, any>;
+  columns: DatasourceColumn[];
+  created_at: string;
+}
+
+export type ConnectorKind = 'internal' | 'rest' | 'sql' | 'webhook';
+
+export interface ConnectorOperation {
+  api_name: string;
+  display_name?: string;
+  method?: string;
+  path?: string;
+  description?: string;
+  params?: string[];
+}
+
+export interface Connector {
+  id: string;
+  ontology_id: string;
+  api_name: string;
+  display_name: string;
+  description: string;
+  kind: ConnectorKind;
+  config: Record<string, any>;
+  operations: ConnectorOperation[];
+  created_at: string;
 }
 
 export interface LinkType {
@@ -156,6 +204,12 @@ export interface ActionType {
   object_type_id?: string;
   effect: ActionEffect;
   parameters: Record<string, any>;
+  /** Bound connector that this action writes back to (optional). */
+  connector_id?: string;
+  /** api_name of the connector operation to invoke. */
+  connector_operation?: string;
+  /** Maps action parameter name -> connector operation field name. */
+  parameter_bindings?: Record<string, string>;
 }
 
 export interface ObjectInstance {

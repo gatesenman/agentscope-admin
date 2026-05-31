@@ -102,7 +102,20 @@
     "newActionType": "新建动作类型",
     "newObject": "新建对象",
     "query": "语义查询",
-    "selectOntology": "请选择左侧本体"
+    "selectOntology": "请选择左侧本体",
+    "datasources": "数据源",
+    "connectors": "连接器",
+    "datasource": "数据源",
+    "backingTable": "数据表/数据集",
+    "columns": "字段",
+    "columnMapping": "字段映射",
+    "kind": "类型",
+    "operations": "操作",
+    "writesBackTo": "写回操作",
+    "noWriteBack": "仅本体内部",
+    "propertyColumnMapping": "属性 ↔ 字段映射",
+    "connection": "连接配置",
+    "noDatasource": "未绑定数据源"
   },
   "credential": {
     "provider": "提供商",

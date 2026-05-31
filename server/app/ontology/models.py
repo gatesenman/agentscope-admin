@@ -62,6 +62,24 @@ class ActionEffect(str, Enum):
     CUSTOM = "custom"
 
 
+class DatasourceKind(str, Enum):
+    """Backing data source kind for an object type."""
+
+    DATASET = "dataset"
+    REST_API = "rest_api"
+    SQL = "sql"
+    INLINE = "inline"
+
+
+class ConnectorKind(str, Enum):
+    """External system kind an action can write back to."""
+
+    REST = "rest"
+    WEBHOOK = "webhook"
+    SQL = "sql"
+    INTERNAL = "internal"
+
+
 class Ontology(SQLModel, table=True):
     """A namespace grouping ontology types."""
 
@@ -71,6 +89,65 @@ class Ontology(SQLModel, table=True):
     api_name: str = Field(index=True, unique=True)
     display_name: str
     description: str = ""
+    created_at: datetime = Field(default_factory=_now)
+    updated_at: datetime = Field(default_factory=_now)
+
+
+class Datasource(SQLModel, table=True):
+    """A backing data source for object types (dataset / REST / SQL).
+
+    Object types are *materialised* from a datasource; each property maps to
+    one of the datasource's columns (see ``PropertyType.column_mapping``).
+    This mirrors Palantir's "object type is backed by a datasource" model and
+    gives every object provenance/lineage.
+    """
+
+    __tablename__ = "datasource"
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    ontology_id: str = Field(index=True, foreign_key="ontology.id")
+    api_name: str = Field(index=True)
+    display_name: str
+    description: str = ""
+    kind: DatasourceKind = DatasourceKind.DATASET
+    # Connection details, kind-specific:
+    #   dataset  -> {"path": "/datasets/...", "format": "parquet"}
+    #   rest_api -> {"base_url": "...", "path": "/accounts"}
+    #   sql      -> {"dsn": "...", "table": "accounts"}
+    connection: dict[str, Any] = Field(default_factory=dict, sa_column=Column(SAJSON))
+    # Declared columns: [{"name": "ACCT_NO", "data_type": "string"}, ...]
+    columns: list[dict[str, Any]] = Field(
+        default_factory=list, sa_column=Column(SAJSON)
+    )
+    created_at: datetime = Field(default_factory=_now)
+    updated_at: datetime = Field(default_factory=_now)
+
+
+class Connector(SQLModel, table=True):
+    """An external system an action type can write back to.
+
+    A connector exposes one or more named *operations*; an action type binds
+    to a single operation and maps its parameters onto the operation's fields
+    (see ``ActionType.connector_id`` / ``connector_operation`` /
+    ``parameter_bindings``).
+    """
+
+    __tablename__ = "connector"
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    ontology_id: str = Field(index=True, foreign_key="ontology.id")
+    api_name: str = Field(index=True)
+    display_name: str
+    description: str = ""
+    kind: ConnectorKind = ConnectorKind.REST
+    # Connection-level config: {"base_url": "...", "headers": {...}, "auth": "..."}
+    config: dict[str, Any] = Field(default_factory=dict, sa_column=Column(SAJSON))
+    # Operations: [{"api_name": "freeze", "display_name": "...",
+    #               "method": "POST", "path": "/accounts/{id}/freeze",
+    #               "description": "...", "params": ["freeze_reason"]}]
+    operations: list[dict[str, Any]] = Field(
+        default_factory=list, sa_column=Column(SAJSON)
+    )
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)
 
@@ -89,6 +166,10 @@ class ObjectType(SQLModel, table=True):
     color: str = "#3b82f6"
     primary_key_property: str = "id"
     title_property: str | None = None
+    # Backing datasource (provenance). ``backing_table`` is the object/table
+    # within the datasource that materialises this object type.
+    datasource_id: str | None = Field(default=None, foreign_key="datasource.id")
+    backing_table: str = ""
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)
 
@@ -108,6 +189,9 @@ class PropertyType(SQLModel, table=True):
     is_title: bool = False
     description: str = ""
     sort_order: int = 0
+    # Source column in the object type's backing datasource. Empty means the
+    # property maps to a column with the same name as ``api_name``.
+    column_mapping: str = ""
 
 
 class LinkType(SQLModel, table=True):
@@ -138,6 +222,15 @@ class ActionType(SQLModel, table=True):
     object_type_id: str | None = Field(default=None, foreign_key="object_type.id")
     effect: ActionEffect = ActionEffect.MODIFY
     parameters: dict[str, Any] = Field(default_factory=dict, sa_column=Column(SAJSON))
+    # Optional write-back binding: when set, executing the action also invokes
+    # ``connector_operation`` on ``connector_id``, mapping action parameters
+    # onto the operation's fields via ``parameter_bindings`` (action_param ->
+    # operation_field).
+    connector_id: str | None = Field(default=None, foreign_key="connector.id")
+    connector_operation: str = ""
+    parameter_bindings: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(SAJSON)
+    )
     created_at: datetime = Field(default_factory=_now)
 
 

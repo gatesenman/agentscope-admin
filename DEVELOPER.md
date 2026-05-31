@@ -72,7 +72,7 @@ apps/web-ele/src/
 | Credential | Redis | AgentScope | `type` (provider), `api_key`, `base_url` |
 | Session / messages | Redis | AgentScope | per-agent chat history |
 | Agent profile | SQLite | `agent_profile` | `default_provider/credential/model`, `parameters`, `fallback_*`, `permission_mode` |
-| Ontology | SQLite | `ontology` | object types, properties, link types, action types, object instances |
+| Ontology | SQLite | `ontology` | object types, properties, link types, action types, object instances, **datasources, connectors** |
 | Knowledge base | SQLite | `knowledge` | `KnowledgeBase` → `Document` → `Chunk` (with `term_freq`) |
 | Workflow | SQLite | `workflow` | `graph = {nodes, edges}`, `enabled` |
 | Published app | SQLite | `publish` | `token`, frozen model/params/permission snapshot, `enabled` |
@@ -118,6 +118,31 @@ The **`ontology`** node (Palantir-style) runs one of three operations against a 
 - `execute_action` — invoke an action type, mutating instance state (`action`, `object_id`, `parameters`)
 
 Its result is exposed as both `{{<id>.result}}` (structured) and `{{<id>.text}}` (JSON string). The editor config panel (`views/agentscope/workflow/editor.vue`) shows operation-dependent fields, driven by `selectedNode.data.operation`.
+
+### 3b. Ontology concept model & the two mappings
+
+The ontology mirrors Palantir Foundry. Concept relationships:
+
+```
+Ontology (本体)  ──< ObjectType (对象类型) ──< PropertyType (对象属性)
+       │                  │                        │  column_mapping
+       │                  │  datasource_id          ▼
+       │                  └────────────────►  Datasource (数据集/字段)
+       │
+       ├──< LinkType (连接类型) ──► LinkInstance (对象关系, concrete edges)
+       │
+       └──< ActionType (动作类型) ──┐ connector_id + connector_operation
+                                    │  parameter_bindings
+                                    ▼
+                              Connector (连接器, external operations)
+```
+
+Two mapping layers make the ontology operable by agents:
+
+1. **对象属性 ↔ 数据集字段映射** — every `ObjectType.datasource_id` points at a `Datasource` (`kind = dataset | rest_api | sql | inline`, declares `columns`), and `ObjectType.backing_table` names the table/dataset within it. Each `PropertyType.column_mapping` maps the property to a column (empty ⇒ falls back to `api_name`). This is data lineage: where each object/property comes from.
+2. **动作类型 ↔ 连接器操作映射** — an `ActionType` may bind to a `Connector` (`kind = rest | webhook | sql | internal`, exposes named `operations`) via `connector_id` + `connector_operation`, with `parameter_bindings` mapping action params → operation fields. On `execute_action`, `_invoke_connector()` (`service.py`) resolves the binding, builds the payload, and either issues a real HTTP request (REST/webhook with a reachable `base_url`) or returns a deterministic `simulated` record (when `config.simulate` is set or no base_url). The connector call never aborts the ontology mutation; its outcome is appended as `connector_result`.
+
+CRUD lives under `/ontology/{oid}/datasources` and `/ontology/{oid}/connectors`. Agents discover all of this through tools (`server/app/ontology/tools.py`): `ontology_list_object_types` now reports the backing datasource + per-property `column`, and the new `ontology_list_actions` reports each action's `writes_back_to` connector/operation. Seed a self-consistent example with `scripts/seed_risk_ontology.py`.
 
 ---
 

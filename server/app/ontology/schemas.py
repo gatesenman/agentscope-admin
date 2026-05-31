@@ -6,7 +6,13 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from .models import ActionEffect, LinkCardinality, PropertyDataType
+from .models import (
+    ActionEffect,
+    ConnectorKind,
+    DatasourceKind,
+    LinkCardinality,
+    PropertyDataType,
+)
 
 
 class OntologyCreate(BaseModel):
@@ -29,6 +35,7 @@ class PropertyTypeIn(BaseModel):
     is_title: bool = False
     description: str = ""
     sort_order: int = 0
+    column_mapping: str = ""
 
 
 class ObjectTypeCreate(BaseModel):
@@ -39,6 +46,8 @@ class ObjectTypeCreate(BaseModel):
     color: str = "#3b82f6"
     primary_key_property: str = "id"
     title_property: str | None = None
+    datasource_id: str | None = None
+    backing_table: str = ""
     properties: list[PropertyTypeIn] = Field(default_factory=list)
 
 
@@ -49,7 +58,43 @@ class ObjectTypeUpdate(BaseModel):
     color: str | None = None
     primary_key_property: str | None = None
     title_property: str | None = None
+    datasource_id: str | None = None
+    backing_table: str | None = None
     properties: list[PropertyTypeIn] | None = None
+
+
+class DatasourceCreate(BaseModel):
+    api_name: str
+    display_name: str
+    description: str = ""
+    kind: DatasourceKind = DatasourceKind.DATASET
+    connection: dict[str, Any] = Field(default_factory=dict)
+    columns: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class DatasourceUpdate(BaseModel):
+    display_name: str | None = None
+    description: str | None = None
+    kind: DatasourceKind | None = None
+    connection: dict[str, Any] | None = None
+    columns: list[dict[str, Any]] | None = None
+
+
+class ConnectorCreate(BaseModel):
+    api_name: str
+    display_name: str
+    description: str = ""
+    kind: ConnectorKind = ConnectorKind.REST
+    config: dict[str, Any] = Field(default_factory=dict)
+    operations: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ConnectorUpdate(BaseModel):
+    display_name: str | None = None
+    description: str | None = None
+    kind: ConnectorKind | None = None
+    config: dict[str, Any] | None = None
+    operations: list[dict[str, Any]] | None = None
 
 
 class LinkTypeCreate(BaseModel):
@@ -74,6 +119,9 @@ class ActionTypeCreate(BaseModel):
     object_type_id: str | None = None
     effect: ActionEffect = ActionEffect.MODIFY
     parameters: dict[str, Any] = Field(default_factory=dict)
+    connector_id: str | None = None
+    connector_operation: str = ""
+    parameter_bindings: dict[str, Any] = Field(default_factory=dict)
 
 
 class ActionTypeUpdate(BaseModel):
@@ -82,6 +130,9 @@ class ActionTypeUpdate(BaseModel):
     object_type_id: str | None = None
     effect: ActionEffect | None = None
     parameters: dict[str, Any] | None = None
+    connector_id: str | None = None
+    connector_operation: str | None = None
+    parameter_bindings: dict[str, Any] | None = None
 
 
 class ObjectInstanceIn(BaseModel):

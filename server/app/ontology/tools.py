@@ -16,7 +16,7 @@ from agentscope.tool import FunctionTool, ToolBase, ToolChunk
 from sqlmodel import Session, select
 
 from .db import engine
-from .models import AgentBinding, ObjectType
+from .models import ActionType, AgentBinding, Connector, Datasource, ObjectType
 from .service import OntologyError, execute_action, list_properties, query_objects, traverse_link
 
 
@@ -53,26 +53,89 @@ def build_ontology_tools(ontology_id: str) -> list[ToolBase]:
 
     def ontology_list_object_types() -> ToolChunk:
         """List all object types available in the bound ontology, including
-        their properties. Use this first to discover what data exists."""
+        their properties and the backing datasource each property maps to. Use
+        this first to discover what data exists and where it comes from."""
         with Session(engine) as session:
             rows = list(
                 session.exec(select(ObjectType).where(ObjectType.ontology_id == ontology_id))
             )
             out = []
             for ot in rows:
+                ds = (
+                    session.get(Datasource, ot.datasource_id)
+                    if ot.datasource_id
+                    else None
+                )
                 out.append(
                     {
                         "api_name": ot.api_name,
                         "display_name": ot.display_name,
                         "description": ot.description,
                         "primary_key": ot.primary_key_property,
+                        "datasource": (
+                            {
+                                "api_name": ds.api_name,
+                                "kind": ds.kind,
+                                "table": ot.backing_table,
+                            }
+                            if ds is not None
+                            else None
+                        ),
                         "properties": [
-                            {"api_name": p.api_name, "data_type": p.data_type, "required": p.required}
+                            {
+                                "api_name": p.api_name,
+                                "display_name": p.display_name,
+                                "data_type": p.data_type,
+                                "required": p.required,
+                                "column": p.column_mapping or p.api_name,
+                            }
                             for p in list_properties(session, ot.id)
                         ],
                     }
                 )
             return _text({"object_types": out})
+
+    def ontology_list_actions() -> ToolChunk:
+        """List the actions that can be executed against this ontology,
+        including their parameters and any external connector operation they
+        write back to. Call this before ``ontology_execute_action`` to discover
+        what operations are available and what parameters they expect."""
+        with Session(engine) as session:
+            rows = list(
+                session.exec(select(ActionType).where(ActionType.ontology_id == ontology_id))
+            )
+            object_types = {
+                ot.id: ot.api_name
+                for ot in session.exec(
+                    select(ObjectType).where(ObjectType.ontology_id == ontology_id)
+                )
+            }
+            out = []
+            for at in rows:
+                connector = (
+                    session.get(Connector, at.connector_id)
+                    if at.connector_id
+                    else None
+                )
+                out.append(
+                    {
+                        "api_name": at.api_name,
+                        "display_name": at.display_name,
+                        "description": at.description,
+                        "effect": at.effect,
+                        "object_type": object_types.get(at.object_type_id),
+                        "parameters": at.parameters,
+                        "writes_back_to": (
+                            {
+                                "connector": connector.api_name,
+                                "operation": at.connector_operation,
+                            }
+                            if connector is not None and at.connector_operation
+                            else None
+                        ),
+                    }
+                )
+            return _text({"actions": out})
 
     def ontology_query_objects(
         object_type: str,
@@ -131,6 +194,7 @@ def build_ontology_tools(ontology_id: str) -> list[ToolBase]:
 
     return [
         AllowedFunctionTool(ontology_list_object_types, is_read_only=True),
+        AllowedFunctionTool(ontology_list_actions, is_read_only=True),
         AllowedFunctionTool(ontology_query_objects, is_read_only=True),
         AllowedFunctionTool(ontology_traverse_link, is_read_only=True),
         AllowedFunctionTool(ontology_execute_action, is_read_only=False),

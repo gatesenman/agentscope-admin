@@ -1,6 +1,8 @@
 import type {
   ActionType,
   AgentBinding,
+  Connector,
+  Datasource,
   LinkType,
   ListResponse,
   ObjectInstance,
@@ -138,6 +140,20 @@ export function createActionType(
 export function deleteActionType(ontologyId: string, actionTypeId: string) {
   return agentScopeClient.delete(
     `${base}/${ontologyId}/action-types/${actionTypeId}`,
+  );
+}
+
+/* ---------------------------- datasources --------------------------------- */
+export function listDatasources(ontologyId: string) {
+  return agentScopeClient.get<ListResponse<Datasource>>(
+    `${base}/${ontologyId}/datasources`,
+  );
+}
+
+/* ----------------------------- connectors --------------------------------- */
+export function listConnectors(ontologyId: string) {
+  return agentScopeClient.get<ListResponse<Connector>>(
+    `${base}/${ontologyId}/connectors`,
   );
 }
 

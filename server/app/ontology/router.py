@@ -11,6 +11,8 @@ from .db import get_session
 from .models import (
     ActionType,
     AgentBinding,
+    Connector,
+    Datasource,
     LinkInstance,
     LinkType,
     ObjectInstance,
@@ -23,6 +25,10 @@ from .schemas import (
     ActionTypeCreate,
     ActionTypeUpdate,
     AgentBindingIn,
+    ConnectorCreate,
+    ConnectorUpdate,
+    DatasourceCreate,
+    DatasourceUpdate,
     LinkInstanceIn,
     LinkTypeCreate,
     LinkTypeUpdate,
@@ -149,6 +155,82 @@ def delete_object_type(ontology_id: str, object_type_id: str, session: Session =
     session.delete(ot)
     session.commit()
     return {"deleted": object_type_id}
+
+
+# --------------------------------------------------------------------------- #
+# Datasources (backing data sources for object types)
+# --------------------------------------------------------------------------- #
+@router.get("/{ontology_id}/datasources")
+def list_datasources(ontology_id: str, session: Session = Depends(get_session)) -> dict:
+    rows = list(session.exec(select(Datasource).where(Datasource.ontology_id == ontology_id)))
+    return {"items": rows, "total": len(rows)}
+
+
+@router.post("/{ontology_id}/datasources")
+def create_datasource(ontology_id: str, body: DatasourceCreate, session: Session = Depends(get_session)) -> Datasource:
+    _get_or_404(session, Ontology, ontology_id, "Ontology")
+    ds = Datasource(ontology_id=ontology_id, **body.model_dump())
+    session.add(ds)
+    session.commit()
+    session.refresh(ds)
+    return ds
+
+
+@router.patch("/{ontology_id}/datasources/{datasource_id}")
+def update_datasource(datasource_id: str, body: DatasourceUpdate, session: Session = Depends(get_session)) -> Datasource:
+    ds = _get_or_404(session, Datasource, datasource_id, "Datasource")
+    for key, value in body.model_dump(exclude_none=True).items():
+        setattr(ds, key, value)
+    session.add(ds)
+    session.commit()
+    session.refresh(ds)
+    return ds
+
+
+@router.delete("/{ontology_id}/datasources/{datasource_id}")
+def delete_datasource(datasource_id: str, session: Session = Depends(get_session)) -> dict:
+    ds = _get_or_404(session, Datasource, datasource_id, "Datasource")
+    session.delete(ds)
+    session.commit()
+    return {"deleted": datasource_id}
+
+
+# --------------------------------------------------------------------------- #
+# Connectors (external systems action types write back to)
+# --------------------------------------------------------------------------- #
+@router.get("/{ontology_id}/connectors")
+def list_connectors(ontology_id: str, session: Session = Depends(get_session)) -> dict:
+    rows = list(session.exec(select(Connector).where(Connector.ontology_id == ontology_id)))
+    return {"items": rows, "total": len(rows)}
+
+
+@router.post("/{ontology_id}/connectors")
+def create_connector(ontology_id: str, body: ConnectorCreate, session: Session = Depends(get_session)) -> Connector:
+    _get_or_404(session, Ontology, ontology_id, "Ontology")
+    conn = Connector(ontology_id=ontology_id, **body.model_dump())
+    session.add(conn)
+    session.commit()
+    session.refresh(conn)
+    return conn
+
+
+@router.patch("/{ontology_id}/connectors/{connector_id}")
+def update_connector(connector_id: str, body: ConnectorUpdate, session: Session = Depends(get_session)) -> Connector:
+    conn = _get_or_404(session, Connector, connector_id, "Connector")
+    for key, value in body.model_dump(exclude_none=True).items():
+        setattr(conn, key, value)
+    session.add(conn)
+    session.commit()
+    session.refresh(conn)
+    return conn
+
+
+@router.delete("/{ontology_id}/connectors/{connector_id}")
+def delete_connector(connector_id: str, session: Session = Depends(get_session)) -> dict:
+    conn = _get_or_404(session, Connector, connector_id, "Connector")
+    session.delete(conn)
+    session.commit()
+    return {"deleted": connector_id}
 
 
 # --------------------------------------------------------------------------- #

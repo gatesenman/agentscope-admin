@@ -96,6 +96,15 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        name: 'AgentScopeMcp',
+        path: '/agentscope/mcp',
+        component: () => import('#/views/agentscope/mcp/index.vue'),
+        meta: {
+          icon: 'lucide:server',
+          title: $t('agentscope.menu.mcp'),
+        },
+      },
+      {
         name: 'AgentScopeOrchestration',
         path: '/agentscope/orchestration',
         component: () => import('#/views/agentscope/orchestration/index.vue'),

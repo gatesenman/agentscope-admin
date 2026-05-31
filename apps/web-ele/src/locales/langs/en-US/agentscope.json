@@ -11,7 +11,8 @@
     "schedules": "Schedules",
     "publish": "Publishing",
     "workflow": "Workflows",
-    "knowledge": "Knowledge"
+    "knowledge": "Knowledge",
+    "mcp": "MCP Servers"
   },
   "common": {
     "create": "Create",
@@ -113,7 +114,8 @@
     "send": "Send",
     "inputPlaceholder": "Type a message, Enter to send",
     "newSession": "New Session",
-    "noSession": "Create or select a session first"
+    "noSession": "Create or select a session first",
+    "mcpAttachFailed": "Failed to attach MCP server {name}"
   },
   "integration": {
     "title": "Integration Center",
@@ -222,5 +224,41 @@
     "queryPlaceholder": "Enter a query to retrieve…",
     "search": "Search",
     "noHits": "No results yet"
+  },
+  "mcp": {
+    "description": "Manage reusable MCP servers (stdio / http): test connections, discover tools, and auto-attach enabled servers to sessions.",
+    "newServer": "New MCP Server",
+    "editServer": "Edit MCP Server",
+    "descriptionField": "Description",
+    "transport": "Transport",
+    "target": "Target",
+    "command": "Command",
+    "args": "Arguments",
+    "argsHint": "One argument per line",
+    "env": "Environment",
+    "kvHint": "One KEY=VALUE per line",
+    "url": "URL",
+    "headers": "Headers",
+    "timeout": "Timeout (s)",
+    "stateful": "Stateful connection",
+    "statefulHint": "stdio must be stateful; http may be stateless",
+    "enableTools": "Enable only these tools (optional)",
+    "disableTools": "Disable tools (optional)",
+    "toolFilterHint": "One tool name per line; empty means all",
+    "enabled": "Enabled",
+    "health": "Health",
+    "test": "Test",
+    "testResult": "Test Result",
+    "toolName": "Tool",
+    "toolDescription": "Description",
+    "noTools": "Connected, but no tools were discovered.",
+    "nameRequired": "Name is required",
+    "commandRequired": "Command is required",
+    "urlRequired": "URL is required",
+    "status": {
+      "unknown": "Unknown",
+      "healthy": "Healthy",
+      "unhealthy": "Unhealthy"
+    }
   }
 }

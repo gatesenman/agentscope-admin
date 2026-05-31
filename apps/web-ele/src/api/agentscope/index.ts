@@ -4,6 +4,7 @@ export * as chatApi from './chat';
 export * as credentialApi from './credential';
 export * as dashboardApi from './dashboard';
 export * as knowledgeApi from './knowledge';
+export * as mcpApi from './mcp';
 export * as modelApi from './model';
 export * as ontologyApi from './ontology';
 export * as publishApi from './publish';

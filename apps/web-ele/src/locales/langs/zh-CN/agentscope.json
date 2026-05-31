@@ -11,7 +11,8 @@
     "schedules": "定时任务",
     "publish": "发布管理",
     "workflow": "工作流编排",
-    "knowledge": "知识库"
+    "knowledge": "知识库",
+    "mcp": "MCP 服务器"
   },
   "common": {
     "create": "新建",
@@ -113,7 +114,8 @@
     "send": "发送",
     "inputPlaceholder": "输入消息，回车发送",
     "newSession": "新建会话",
-    "noSession": "请先创建或选择会话"
+    "noSession": "请先创建或选择会话",
+    "mcpAttachFailed": "MCP 服务器 {name} 注入失败"
   },
   "integration": {
     "title": "集成中心",
@@ -222,5 +224,41 @@
     "queryPlaceholder": "输入查询进行检索…",
     "search": "检索",
     "noHits": "暂无检索结果"
+  },
+  "mcp": {
+    "description": "管理可复用的 MCP 服务器（stdio / http），可测试连接并发现工具，启用后自动注入到会话。",
+    "newServer": "新建 MCP 服务器",
+    "editServer": "编辑 MCP 服务器",
+    "descriptionField": "描述",
+    "transport": "传输方式",
+    "target": "目标",
+    "command": "命令",
+    "args": "参数",
+    "argsHint": "每行一个参数",
+    "env": "环境变量",
+    "kvHint": "每行一个 KEY=VALUE",
+    "url": "服务地址",
+    "headers": "请求头",
+    "timeout": "超时（秒）",
+    "stateful": "有状态连接",
+    "statefulHint": "stdio 必须有状态；http 可无状态",
+    "enableTools": "仅启用工具（可选）",
+    "disableTools": "禁用工具（可选）",
+    "toolFilterHint": "每行一个工具名；留空表示全部",
+    "enabled": "启用",
+    "health": "健康状态",
+    "test": "测试连接",
+    "testResult": "测试结果",
+    "toolName": "工具名",
+    "toolDescription": "描述",
+    "noTools": "连接成功，但未发现工具。",
+    "nameRequired": "请填写名称",
+    "commandRequired": "请填写命令",
+    "urlRequired": "请填写服务地址",
+    "status": {
+      "unknown": "未知",
+      "healthy": "正常",
+      "unhealthy": "异常"
+    }
   }
 }

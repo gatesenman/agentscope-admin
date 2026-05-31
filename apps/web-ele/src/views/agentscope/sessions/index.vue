@@ -27,8 +27,10 @@ import {
   agentProfileApi,
   chatApi,
   credentialApi,
+  mcpApi,
   modelApi,
   sessionApi,
+  workspaceApi,
 } from '#/api/agentscope';
 import { $t } from '#/locales';
 
@@ -137,6 +139,27 @@ async function applyAgentProfile(id: string) {
 
 watch(agentId, applyAgentProfile);
 
+// Push every enabled MCP server from the registry into the freshly created
+// session's workspace. Failures are surfaced as warnings but never block chat.
+async function attachEnabledMcps(sid: string) {
+  let payloads: Record<string, any>[];
+  try {
+    const res = await mcpApi.enabledMcpPayloads();
+    payloads = res.items ?? [];
+  } catch {
+    return;
+  }
+  for (const payload of payloads) {
+    try {
+      await workspaceApi.addMcp(agentId.value, sid, payload);
+    } catch {
+      ElMessage.warning(
+        $t('agentscope.session.mcpAttachFailed', { name: payload.name }),
+      );
+    }
+  }
+}
+
 async function ensureSession() {
   if (sessionId.value) return sessionId.value;
   if (!agentId.value) {
@@ -179,6 +202,10 @@ async function ensureSession() {
       permission_mode: permissionMode.value,
     });
   }
+  // Attach every enabled MCP server from the registry to this session so the
+  // agent gains their tools. Best-effort: a single bad server must not block
+  // the playground.
+  await attachEnabledMcps(sessionId.value);
   return sessionId.value;
 }
 

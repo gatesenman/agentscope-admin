@@ -41,6 +41,10 @@ import {
 } from '#/api/agentscope';
 import { $t } from '#/locales';
 
+import CodeEditor from '../components/CodeEditor.vue';
+import JsonEditor from '../components/JsonEditor.vue';
+import PanelSection from '../components/PanelSection.vue';
+import VarInput from '../components/VarInput.vue';
 import FlowNode from './FlowNode.vue';
 
 import '@vue-flow/core/dist/style.css';
@@ -223,6 +227,120 @@ const operators = [
   'gte',
   'lte',
 ];
+
+// ---- Variable reference helpers (for VarInput autocomplete) ----
+interface VarGroup {
+  fields: string[];
+  node: string;
+}
+
+// Output fields a node exposes for `{{node.field}}` references.
+function nodeOutputFields(type: string, data?: any): string[] {
+  switch (type) {
+    case 'assigner': {
+      const vs = (data?.assignments ?? [])
+        .map((a: any) => a.variable)
+        .filter(Boolean);
+      return vs.length > 0 ? vs : ['text'];
+    }
+    case 'code': {
+      return ['result', 'text'];
+    }
+    case 'http-request': {
+      return ['status', 'body', 'text'];
+    }
+    case 'iteration': {
+      return ['results', 'text'];
+    }
+    case 'knowledge': {
+      return ['text', 'chunks'];
+    }
+    case 'list-operator': {
+      return ['result', 'text'];
+    }
+    case 'ontology': {
+      return ['text', 'objects'];
+    }
+    case 'parameter-extractor': {
+      const fs = (data?.parameters_schema ?? [])
+        .map((p: any) => p.name)
+        .filter(Boolean);
+      return ['text', ...fs];
+    }
+    case 'question-classifier': {
+      return ['text', 'class_name'];
+    }
+    case 'start':
+    case 'trigger-schedule':
+    case 'trigger-webhook': {
+      const vars = (data?.variables ?? [])
+        .map((v: any) => v.name)
+        .filter(Boolean);
+      return vars.length > 0 ? vars : ['query'];
+    }
+    default: {
+      return ['text'];
+    }
+  }
+}
+
+function outputFieldHint(type: string): string {
+  return nodeOutputFields(type)[0] ?? 'text';
+}
+
+// Human-readable "this node outputs" hint, e.g. "{{code-1.result}}".
+const selectedOutputExpr = computed(() => {
+  const node = selectedNode.value;
+  if (!node) return '';
+  return `{{${node.id}.${outputFieldHint(node.type)}}}`;
+});
+
+// Walk edges backwards to collect ancestor node ids of the selected node.
+const upstreamVars = computed<VarGroup[]>(() => {
+  if (!selectedId.value) return [];
+  const obj = toObject();
+  const nodes = obj.nodes ?? [];
+  const edges = obj.edges ?? [];
+  const incoming = new Map<string, string[]>();
+  for (const e of edges) {
+    const list = incoming.get(e.target) ?? [];
+    list.push(e.source);
+    incoming.set(e.target, list);
+  }
+  const seen = new Set<string>();
+  const queue = [...(incoming.get(selectedId.value) ?? [])];
+  while (queue.length > 0) {
+    const id = queue.shift();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    for (const p of incoming.get(id) ?? []) queue.push(p);
+  }
+  const byId = new Map(nodes.map((n: any) => [n.id, n]));
+  // Fall back to all other nodes when the graph isn't wired up yet.
+  const ids =
+    seen.size > 0
+      ? [...seen]
+      : nodes
+          .map((n: any) => n.id)
+          .filter((id: string) => id !== selectedId.value);
+  const groups: VarGroup[] = [];
+  for (const id of ids) {
+    const n = byId.get(id);
+    if (!n) continue;
+    groups.push({ node: id, fields: nodeOutputFields(n.type, n.data) });
+  }
+  return groups;
+});
+
+// Iteration exposes per-item built-ins; loop exposes the round index.
+const iterationVars = computed<VarGroup[]>(() => [
+  { node: '', fields: ['item', 'index'] },
+  ...upstreamVars.value,
+]);
+const loopVars = computed<VarGroup[]>(() => [
+  { node: '', fields: ['loop_index'] },
+  ...upstreamVars.value,
+]);
 
 function defaultData(type: string): Record<string, any> {
   switch (type) {
@@ -467,7 +585,7 @@ function commitFilters() {
       selectedNode.value.data.filters = JSON.parse(filtersText.value || '{}');
     }
   } catch {
-    ElMessage.warning('过滤条件需为合法 JSON');
+    // Invalid JSON while typing; JsonEditor shows the validity indicator.
   }
 }
 
@@ -477,7 +595,7 @@ function commitParams() {
       selectedNode.value.data.parameters = JSON.parse(paramsText.value || '{}');
     }
   } catch {
-    ElMessage.warning('动作参数需为合法 JSON');
+    // Invalid JSON while typing; JsonEditor shows the validity indicator.
   }
 }
 
@@ -486,14 +604,35 @@ const httpHeadersText = ref('{}');
 const httpParamsText = ref('{}');
 const toolParamsText = ref('{}');
 
-function commitJson(text: string, field: string, label: string) {
+function commitJson(text: string, field: string) {
   try {
     if (selectedNode.value) {
       selectedNode.value.data[field] = JSON.parse(text || '{}');
     }
   } catch {
-    ElMessage.warning(`${label}需为合法 JSON`);
+    // Invalid JSON while typing; JsonEditor shows the validity indicator.
   }
+}
+
+function onFiltersInput(v: string) {
+  filtersText.value = v;
+  commitFilters();
+}
+function onParamsInput(v: string) {
+  paramsText.value = v;
+  commitParams();
+}
+function onHttpHeadersInput(v: string) {
+  httpHeadersText.value = v;
+  commitJson(v, 'headers');
+}
+function onHttpParamsInput(v: string) {
+  httpParamsText.value = v;
+  commitJson(v, 'params');
+}
+function onToolParamsInput(v: string) {
+  toolParamsText.value = v;
+  commitJson(v, 'parameters');
 }
 
 // ---- Row editors for structured array configs ----
@@ -804,254 +943,295 @@ onMounted(load);
               </ElButton>
             </div>
             <ElForm label-position="top">
-              <ElFormItem :label="$t('agentscope.workflow.nodeTitle')">
-                <ElInput v-model="selectedNode.data.title" />
-              </ElFormItem>
+              <PanelSection title="基本" icon="lucide:tag">
+                <ElFormItem :label="$t('agentscope.workflow.nodeTitle')">
+                  <ElInput v-model="selectedNode.data.title" />
+                </ElFormItem>
+                <p class="wf-varhint">
+                  本节点输出变量：<code>{{ selectedOutputExpr }}</code>
+                </p>
+              </PanelSection>
 
               <!-- start -->
               <template v-if="selectedNode.type === 'start'">
-                <p
-                  style="font-size: 12px; color: var(--el-text-color-secondary)"
-                >
-                  {{ $t('agentscope.workflow.startHint') }}
-                </p>
+                <PanelSection title="说明" icon="lucide:info">
+                  <p class="wf-hint">
+                    {{ $t('agentscope.workflow.startHint') }}
+                  </p>
+                </PanelSection>
               </template>
 
               <!-- llm -->
               <template v-if="selectedNode.type === 'llm'">
-                <ElFormItem :label="$t('agentscope.workflow.credential')">
-                  <ElSelect
-                    v-model="selectedNode.data.credential_id"
-                    @change="(v) => onLlmCredentialChange(selectedNode, v)"
-                  >
-                    <ElOption
-                      v-for="c in credentials"
-                      :key="c.id"
-                      :label="`${c.data?.name || c.id} (${c.data?.type})`"
-                      :value="c.id"
+                <PanelSection title="模型" icon="lucide:sparkles">
+                  <ElFormItem :label="$t('agentscope.workflow.credential')">
+                    <ElSelect
+                      v-model="selectedNode.data.credential_id"
+                      @change="(v) => onLlmCredentialChange(selectedNode, v)"
+                    >
+                      <ElOption
+                        v-for="c in credentials"
+                        :key="c.id"
+                        :label="`${c.data?.name || c.id} (${c.data?.type})`"
+                        :value="c.id"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem :label="$t('agentscope.workflow.model')">
+                    <ElSelect
+                      v-model="selectedNode.data.model"
+                      filterable
+                      allow-create
+                      default-first-option
+                    >
+                      <ElOption
+                        v-for="m in models"
+                        :key="m.model"
+                        :label="m.model"
+                        :value="m.model"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                </PanelSection>
+                <PanelSection title="提示词" icon="lucide:message-square-text">
+                  <ElFormItem :label="$t('agentscope.workflow.systemPrompt')">
+                    <VarInput
+                      v-model="selectedNode.data.system_prompt"
+                      type="textarea"
+                      :rows="3"
+                      :variables="upstreamVars"
                     />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem :label="$t('agentscope.workflow.model')">
-                  <ElSelect
-                    v-model="selectedNode.data.model"
-                    filterable
-                    allow-create
-                    default-first-option
-                  >
-                    <ElOption
-                      v-for="m in models"
-                      :key="m.model"
-                      :label="m.model"
-                      :value="m.model"
+                  </ElFormItem>
+                  <ElFormItem :label="$t('agentscope.workflow.prompt')">
+                    <VarInput
+                      v-model="selectedNode.data.prompt"
+                      type="textarea"
+                      :rows="3"
+                      :variables="upstreamVars"
                     />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem :label="$t('agentscope.workflow.systemPrompt')">
-                  <ElInput
-                    v-model="selectedNode.data.system_prompt"
-                    type="textarea"
-                    :rows="3"
-                  />
-                </ElFormItem>
-                <ElFormItem :label="$t('agentscope.workflow.prompt')">
-                  <ElInput
-                    v-model="selectedNode.data.prompt"
-                    type="textarea"
-                    :rows="3"
-                  />
-                </ElFormItem>
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- agent -->
               <template v-if="selectedNode.type === 'agent'">
-                <ElFormItem :label="$t('agentscope.workflow.agent')">
-                  <ElSelect v-model="selectedNode.data.agent_id">
-                    <ElOption
-                      v-for="a in agents"
-                      :key="a.id"
-                      :label="a.data?.name || a.id"
-                      :value="a.id"
+                <PanelSection title="配置" icon="lucide:bot">
+                  <ElFormItem :label="$t('agentscope.workflow.agent')">
+                    <ElSelect v-model="selectedNode.data.agent_id">
+                      <ElOption
+                        v-for="a in agents"
+                        :key="a.id"
+                        :label="a.data?.name || a.id"
+                        :value="a.id"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem :label="$t('agentscope.workflow.prompt')">
+                    <VarInput
+                      v-model="selectedNode.data.prompt"
+                      type="textarea"
+                      :rows="3"
+                      :variables="upstreamVars"
                     />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem :label="$t('agentscope.workflow.prompt')">
-                  <ElInput
-                    v-model="selectedNode.data.prompt"
-                    type="textarea"
-                    :rows="3"
-                  />
-                </ElFormItem>
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- knowledge -->
               <template v-if="selectedNode.type === 'knowledge'">
-                <ElFormItem :label="$t('agentscope.menu.knowledge')">
-                  <ElSelect v-model="selectedNode.data.kb_id">
-                    <ElOption
-                      v-for="k in kbs"
-                      :key="k.kb.id"
-                      :label="k.kb.name"
-                      :value="k.kb.id"
+                <PanelSection title="检索配置" icon="lucide:book-open">
+                  <ElFormItem :label="$t('agentscope.menu.knowledge')">
+                    <ElSelect v-model="selectedNode.data.kb_id">
+                      <ElOption
+                        v-for="k in kbs"
+                        :key="k.kb.id"
+                        :label="k.kb.name"
+                        :value="k.kb.id"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem :label="$t('agentscope.workflow.query')">
+                    <VarInput
+                      v-model="selectedNode.data.query"
+                      :variables="upstreamVars"
                     />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem :label="$t('agentscope.workflow.query')">
-                  <ElInput v-model="selectedNode.data.query" />
-                </ElFormItem>
-                <ElFormItem label="Top-K">
-                  <ElInputNumber
-                    v-model="selectedNode.data.top_k"
-                    :min="1"
-                    :max="20"
-                  />
-                </ElFormItem>
+                  </ElFormItem>
+                  <ElFormItem label="Top-K">
+                    <ElInputNumber
+                      v-model="selectedNode.data.top_k"
+                      :min="1"
+                      :max="20"
+                    />
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- condition -->
               <template v-if="selectedNode.type === 'condition'">
-                <ElFormItem :label="$t('agentscope.workflow.variable')">
-                  <ElInput v-model="selectedNode.data.variable" />
-                </ElFormItem>
-                <ElFormItem :label="$t('agentscope.workflow.operator')">
-                  <ElSelect v-model="selectedNode.data.operator">
-                    <ElOption
-                      v-for="op in operators"
-                      :key="op"
-                      :label="op"
-                      :value="op"
+                <PanelSection title="条件" icon="lucide:git-branch">
+                  <ElFormItem :label="$t('agentscope.workflow.variable')">
+                    <VarInput
+                      v-model="selectedNode.data.variable"
+                      :variables="upstreamVars"
                     />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem :label="$t('agentscope.workflow.value')">
-                  <ElInput v-model="selectedNode.data.value" />
-                </ElFormItem>
+                  </ElFormItem>
+                  <ElFormItem :label="$t('agentscope.workflow.operator')">
+                    <ElSelect v-model="selectedNode.data.operator">
+                      <ElOption
+                        v-for="op in operators"
+                        :key="op"
+                        :label="op"
+                        :value="op"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem :label="$t('agentscope.workflow.value')">
+                    <VarInput
+                      v-model="selectedNode.data.value"
+                      :variables="upstreamVars"
+                    />
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- ontology -->
               <template v-if="selectedNode.type === 'ontology'">
-                <ElFormItem label="本体">
-                  <ElSelect
-                    v-model="selectedNode.data.ontology_id"
-                    @change="(v: string) => onOntologyChange(selectedNode!, v)"
+                <PanelSection title="本体操作" icon="lucide:share-2">
+                  <ElFormItem label="本体">
+                    <ElSelect
+                      v-model="selectedNode.data.ontology_id"
+                      @change="
+                        (v: string) => onOntologyChange(selectedNode!, v)
+                      "
+                    >
+                      <ElOption
+                        v-for="o in ontologies"
+                        :key="o.id"
+                        :label="o.display_name || o.api_name"
+                        :value="o.id"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem label="操作">
+                    <ElSelect v-model="selectedNode.data.operation">
+                      <ElOption
+                        v-for="op in ontologyOps"
+                        :key="op.value"
+                        :label="op.label"
+                        :value="op.value"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+
+                  <!-- query fields -->
+                  <template v-if="selectedNode.data.operation === 'query'">
+                    <ElFormItem label="对象类型">
+                      <ElSelect
+                        v-model="selectedNode.data.object_type"
+                        filterable
+                        allow-create
+                      >
+                        <ElOption
+                          v-for="ot in ontObjectTypes"
+                          :key="ot.id"
+                          :label="ot.display_name || ot.api_name"
+                          :value="ot.api_name"
+                        />
+                      </ElSelect>
+                    </ElFormItem>
+                    <ElFormItem label="搜索表达式">
+                      <VarInput
+                        v-model="selectedNode.data.search"
+                        :variables="upstreamVars"
+                      />
+                    </ElFormItem>
+                    <ElFormItem label="过滤条件 (JSON)">
+                      <JsonEditor
+                        :model-value="filtersText"
+                        :min-height="100"
+                        @update:model-value="onFiltersInput"
+                      />
+                    </ElFormItem>
+                    <ElFormItem label="返回数量">
+                      <ElInputNumber
+                        v-model="selectedNode.data.limit"
+                        :min="1"
+                        :max="100"
+                      />
+                    </ElFormItem>
+                  </template>
+
+                  <!-- traverse fields -->
+                  <template v-if="selectedNode.data.operation === 'traverse'">
+                    <ElFormItem label="关系类型">
+                      <ElSelect
+                        v-model="selectedNode.data.link_type"
+                        filterable
+                        allow-create
+                      >
+                        <ElOption
+                          v-for="lt in ontLinkTypes"
+                          :key="lt.id"
+                          :label="lt.display_name || lt.api_name"
+                          :value="lt.api_name"
+                        />
+                      </ElSelect>
+                    </ElFormItem>
+                    <ElFormItem label="源对象 ID">
+                      <VarInput
+                        v-model="selectedNode.data.source_object_id"
+                        :variables="upstreamVars"
+                      />
+                    </ElFormItem>
+                  </template>
+
+                  <!-- execute_action fields -->
+                  <template
+                    v-if="selectedNode.data.operation === 'execute_action'"
                   >
-                    <ElOption
-                      v-for="o in ontologies"
-                      :key="o.id"
-                      :label="o.display_name || o.api_name"
-                      :value="o.id"
-                    />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem label="操作">
-                  <ElSelect v-model="selectedNode.data.operation">
-                    <ElOption
-                      v-for="op in ontologyOps"
-                      :key="op.value"
-                      :label="op.label"
-                      :value="op.value"
-                    />
-                  </ElSelect>
-                </ElFormItem>
-
-                <!-- query fields -->
-                <template v-if="selectedNode.data.operation === 'query'">
-                  <ElFormItem label="对象类型">
-                    <ElSelect
-                      v-model="selectedNode.data.object_type"
-                      filterable
-                      allow-create
-                    >
-                      <ElOption
-                        v-for="ot in ontObjectTypes"
-                        :key="ot.id"
-                        :label="ot.display_name || ot.api_name"
-                        :value="ot.api_name"
+                    <ElFormItem label="动作">
+                      <ElSelect
+                        v-model="selectedNode.data.action"
+                        filterable
+                        allow-create
+                      >
+                        <ElOption
+                          v-for="at in ontActionTypes"
+                          :key="at.id"
+                          :label="at.display_name || at.api_name"
+                          :value="at.api_name"
+                        />
+                      </ElSelect>
+                    </ElFormItem>
+                    <ElFormItem label="对象 ID">
+                      <VarInput
+                        v-model="selectedNode.data.object_id"
+                        :variables="upstreamVars"
                       />
-                    </ElSelect>
-                  </ElFormItem>
-                  <ElFormItem label="搜索表达式">
-                    <ElInput v-model="selectedNode.data.search" />
-                  </ElFormItem>
-                  <ElFormItem label="过滤条件 (JSON)">
-                    <ElInput
-                      v-model="filtersText"
-                      type="textarea"
-                      :rows="3"
-                      @change="commitFilters"
-                    />
-                  </ElFormItem>
-                  <ElFormItem label="返回数量">
-                    <ElInputNumber
-                      v-model="selectedNode.data.limit"
-                      :min="1"
-                      :max="100"
-                    />
-                  </ElFormItem>
-                </template>
-
-                <!-- traverse fields -->
-                <template v-if="selectedNode.data.operation === 'traverse'">
-                  <ElFormItem label="关系类型">
-                    <ElSelect
-                      v-model="selectedNode.data.link_type"
-                      filterable
-                      allow-create
-                    >
-                      <ElOption
-                        v-for="lt in ontLinkTypes"
-                        :key="lt.id"
-                        :label="lt.display_name || lt.api_name"
-                        :value="lt.api_name"
+                    </ElFormItem>
+                    <ElFormItem label="参数 (JSON)">
+                      <JsonEditor
+                        :model-value="paramsText"
+                        :min-height="100"
+                        @update:model-value="onParamsInput"
                       />
-                    </ElSelect>
-                  </ElFormItem>
-                  <ElFormItem label="源对象 ID">
-                    <ElInput v-model="selectedNode.data.source_object_id" />
-                  </ElFormItem>
-                </template>
-
-                <!-- execute_action fields -->
-                <template
-                  v-if="selectedNode.data.operation === 'execute_action'"
-                >
-                  <ElFormItem label="动作">
-                    <ElSelect
-                      v-model="selectedNode.data.action"
-                      filterable
-                      allow-create
-                    >
-                      <ElOption
-                        v-for="at in ontActionTypes"
-                        :key="at.id"
-                        :label="at.display_name || at.api_name"
-                        :value="at.api_name"
-                      />
-                    </ElSelect>
-                  </ElFormItem>
-                  <ElFormItem label="对象 ID">
-                    <ElInput v-model="selectedNode.data.object_id" />
-                  </ElFormItem>
-                  <ElFormItem label="参数 (JSON)">
-                    <ElInput
-                      v-model="paramsText"
-                      type="textarea"
-                      :rows="3"
-                      @change="commitParams"
-                    />
-                  </ElFormItem>
-                </template>
+                    </ElFormItem>
+                  </template>
+                </PanelSection>
               </template>
 
               <!-- template -->
               <template v-if="selectedNode.type === 'template'">
-                <ElFormItem :label="$t('agentscope.workflow.template')">
-                  <ElInput
-                    v-model="selectedNode.data.template"
-                    type="textarea"
-                    :rows="4"
-                  />
-                </ElFormItem>
+                <PanelSection title="模板" icon="lucide:file-code">
+                  <ElFormItem :label="$t('agentscope.workflow.template')">
+                    <VarInput
+                      v-model="selectedNode.data.template"
+                      type="textarea"
+                      :rows="5"
+                      :variables="upstreamVars"
+                    />
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- answer / end -->
@@ -1060,230 +1240,259 @@ onMounted(load);
                   selectedNode.type === 'answer' || selectedNode.type === 'end'
                 "
               >
-                <ElFormItem :label="$t('agentscope.workflow.answer')">
-                  <ElInput
-                    v-model="selectedNode.data.answer"
-                    type="textarea"
-                    :rows="4"
-                  />
-                </ElFormItem>
+                <PanelSection title="输出" icon="lucide:message-square">
+                  <ElFormItem :label="$t('agentscope.workflow.answer')">
+                    <VarInput
+                      v-model="selectedNode.data.answer"
+                      type="textarea"
+                      :rows="5"
+                      :variables="upstreamVars"
+                    />
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- trigger-schedule -->
               <template v-if="selectedNode.type === 'trigger-schedule'">
-                <ElFormItem label="Cron 表达式">
-                  <ElInput v-model="selectedNode.data.cron" />
-                </ElFormItem>
-                <ElFormItem label="时区">
-                  <ElInput v-model="selectedNode.data.timezone" />
-                </ElFormItem>
-                <p class="wf-hint">
-                  定时触发节点等价于开始节点，按 cron 周期运行工作流。
-                </p>
+                <PanelSection title="触发" icon="lucide:alarm-clock">
+                  <ElFormItem label="Cron 表达式">
+                    <ElInput v-model="selectedNode.data.cron" />
+                  </ElFormItem>
+                  <ElFormItem label="时区">
+                    <ElInput v-model="selectedNode.data.timezone" />
+                  </ElFormItem>
+                  <p class="wf-hint">
+                    定时触发节点等价于开始节点，按 cron 周期运行工作流。
+                  </p>
+                </PanelSection>
               </template>
 
               <!-- trigger-webhook -->
               <template v-if="selectedNode.type === 'trigger-webhook'">
-                <ElFormItem label="路径">
-                  <ElInput v-model="selectedNode.data.path" />
-                </ElFormItem>
-                <ElFormItem label="方法">
-                  <ElSelect v-model="selectedNode.data.method">
-                    <ElOption label="POST" value="POST" />
-                    <ElOption label="GET" value="GET" />
-                  </ElSelect>
-                </ElFormItem>
-                <p class="wf-hint">
-                  Webhook 触发节点等价于开始节点，由外部请求携带变量触发。
-                </p>
+                <PanelSection title="触发" icon="lucide:webhook">
+                  <ElFormItem label="路径">
+                    <ElInput v-model="selectedNode.data.path" />
+                  </ElFormItem>
+                  <ElFormItem label="方法">
+                    <ElSelect v-model="selectedNode.data.method">
+                      <ElOption label="POST" value="POST" />
+                      <ElOption label="GET" value="GET" />
+                    </ElSelect>
+                  </ElFormItem>
+                  <p class="wf-hint">
+                    Webhook 触发节点等价于开始节点，由外部请求携带变量触发。
+                  </p>
+                </PanelSection>
               </template>
 
               <!-- question-classifier -->
               <template v-if="selectedNode.type === 'question-classifier'">
-                <ElFormItem :label="$t('agentscope.workflow.credential')">
-                  <ElSelect
-                    v-model="selectedNode.data.credential_id"
-                    @change="
-                      (v: string) => onLlmCredentialChange(selectedNode, v)
-                    "
-                  >
-                    <ElOption
-                      v-for="c in credentials"
-                      :key="c.id"
-                      :label="`${c.data?.name || c.id} (${c.data?.type})`"
-                      :value="c.id"
-                    />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem :label="$t('agentscope.workflow.model')">
-                  <ElSelect
-                    v-model="selectedNode.data.model"
-                    filterable
-                    allow-create
-                    default-first-option
-                  >
-                    <ElOption
-                      v-for="m in models"
-                      :key="m.model"
-                      :label="m.model"
-                      :value="m.model"
-                    />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem :label="$t('agentscope.workflow.query')">
-                  <ElInput v-model="selectedNode.data.query" />
-                </ElFormItem>
-                <ElFormItem label="分类类别（每个类别一个输出分支）">
-                  <div class="wf-rows">
-                    <div
-                      v-for="(c, i) in selectedNode.data.classes"
-                      :key="c.id"
-                      class="wf-row"
+                <PanelSection title="模型" icon="lucide:sparkles">
+                  <ElFormItem :label="$t('agentscope.workflow.credential')">
+                    <ElSelect
+                      v-model="selectedNode.data.credential_id"
+                      @change="
+                        (v: string) => onLlmCredentialChange(selectedNode, v)
+                      "
                     >
-                      <ElInput v-model="c.name" placeholder="类别名称" />
-                      <ElButton
-                        link
-                        type="danger"
-                        @click="removeRow('classes', i)"
+                      <ElOption
+                        v-for="c in credentials"
+                        :key="c.id"
+                        :label="`${c.data?.name || c.id} (${c.data?.type})`"
+                        :value="c.id"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem :label="$t('agentscope.workflow.model')">
+                    <ElSelect
+                      v-model="selectedNode.data.model"
+                      filterable
+                      allow-create
+                      default-first-option
+                    >
+                      <ElOption
+                        v-for="m in models"
+                        :key="m.model"
+                        :label="m.model"
+                        :value="m.model"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                </PanelSection>
+                <PanelSection title="分类" icon="lucide:list-tree">
+                  <ElFormItem :label="$t('agentscope.workflow.query')">
+                    <VarInput
+                      v-model="selectedNode.data.query"
+                      :variables="upstreamVars"
+                    />
+                  </ElFormItem>
+                  <ElFormItem label="分类类别（每个类别一个输出分支）">
+                    <div class="wf-rows">
+                      <div
+                        v-for="(c, i) in selectedNode.data.classes"
+                        :key="c.id"
+                        class="wf-row"
                       >
-                        <IconifyIcon icon="lucide:trash-2" />
+                        <ElInput v-model="c.name" placeholder="类别名称" />
+                        <ElButton
+                          link
+                          type="danger"
+                          @click="removeRow('classes', i)"
+                        >
+                          <IconifyIcon icon="lucide:trash-2" />
+                        </ElButton>
+                      </div>
+                      <ElButton size="small" @click="addClass">
+                        <IconifyIcon icon="lucide:plus" />
+                        添加类别
                       </ElButton>
                     </div>
-                    <ElButton size="small" @click="addClass">
-                      <IconifyIcon icon="lucide:plus" />
-                      添加类别
-                    </ElButton>
-                  </div>
-                </ElFormItem>
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- parameter-extractor -->
               <template v-if="selectedNode.type === 'parameter-extractor'">
-                <ElFormItem :label="$t('agentscope.workflow.credential')">
-                  <ElSelect
-                    v-model="selectedNode.data.credential_id"
-                    @change="
-                      (v: string) => onLlmCredentialChange(selectedNode, v)
-                    "
-                  >
-                    <ElOption
-                      v-for="c in credentials"
-                      :key="c.id"
-                      :label="`${c.data?.name || c.id} (${c.data?.type})`"
-                      :value="c.id"
-                    />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem :label="$t('agentscope.workflow.model')">
-                  <ElSelect
-                    v-model="selectedNode.data.model"
-                    filterable
-                    allow-create
-                    default-first-option
-                  >
-                    <ElOption
-                      v-for="m in models"
-                      :key="m.model"
-                      :label="m.model"
-                      :value="m.model"
-                    />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem :label="$t('agentscope.workflow.query')">
-                  <ElInput v-model="selectedNode.data.query" />
-                </ElFormItem>
-                <ElFormItem label="提取参数">
-                  <div class="wf-rows">
-                    <div
-                      v-for="(p, i) in selectedNode.data.parameters_schema"
-                      :key="i"
-                      class="wf-row"
-                    >
-                      <ElInput v-model="p.name" placeholder="字段名" />
-                      <ElSelect v-model="p.type" style="width: 110px">
-                        <ElOption label="string" value="string" />
-                        <ElOption label="number" value="number" />
-                        <ElOption label="boolean" value="boolean" />
-                        <ElOption label="array" value="array" />
-                      </ElSelect>
-                      <ElButton
-                        link
-                        type="danger"
-                        @click="removeRow('parameters_schema', i)"
-                      >
-                        <IconifyIcon icon="lucide:trash-2" />
-                      </ElButton>
-                    </div>
-                    <ElButton
-                      size="small"
-                      @click="
-                        pushRow('parameters_schema', {
-                          name: '',
-                          type: 'string',
-                          description: '',
-                          required: false,
-                        })
+                <PanelSection title="模型" icon="lucide:sparkles">
+                  <ElFormItem :label="$t('agentscope.workflow.credential')">
+                    <ElSelect
+                      v-model="selectedNode.data.credential_id"
+                      @change="
+                        (v: string) => onLlmCredentialChange(selectedNode, v)
                       "
                     >
-                      <IconifyIcon icon="lucide:plus" />
-                      添加字段
-                    </ElButton>
-                  </div>
-                </ElFormItem>
+                      <ElOption
+                        v-for="c in credentials"
+                        :key="c.id"
+                        :label="`${c.data?.name || c.id} (${c.data?.type})`"
+                        :value="c.id"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem :label="$t('agentscope.workflow.model')">
+                    <ElSelect
+                      v-model="selectedNode.data.model"
+                      filterable
+                      allow-create
+                      default-first-option
+                    >
+                      <ElOption
+                        v-for="m in models"
+                        :key="m.model"
+                        :label="m.model"
+                        :value="m.model"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                </PanelSection>
+                <PanelSection title="提取参数" icon="lucide:braces">
+                  <ElFormItem :label="$t('agentscope.workflow.query')">
+                    <VarInput
+                      v-model="selectedNode.data.query"
+                      :variables="upstreamVars"
+                    />
+                  </ElFormItem>
+                  <ElFormItem label="提取参数">
+                    <div class="wf-rows">
+                      <div
+                        v-for="(p, i) in selectedNode.data.parameters_schema"
+                        :key="i"
+                        class="wf-row"
+                      >
+                        <ElInput v-model="p.name" placeholder="字段名" />
+                        <ElSelect v-model="p.type" style="width: 110px">
+                          <ElOption label="string" value="string" />
+                          <ElOption label="number" value="number" />
+                          <ElOption label="boolean" value="boolean" />
+                          <ElOption label="array" value="array" />
+                        </ElSelect>
+                        <ElButton
+                          link
+                          type="danger"
+                          @click="removeRow('parameters_schema', i)"
+                        >
+                          <IconifyIcon icon="lucide:trash-2" />
+                        </ElButton>
+                      </div>
+                      <ElButton
+                        size="small"
+                        @click="
+                          pushRow('parameters_schema', {
+                            name: '',
+                            type: 'string',
+                            description: '',
+                            required: false,
+                          })
+                        "
+                      >
+                        <IconifyIcon icon="lucide:plus" />
+                        添加字段
+                      </ElButton>
+                    </div>
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- datasource -->
               <template v-if="selectedNode.type === 'datasource'">
-                <ElFormItem label="数据源类型">
-                  <ElSelect v-model="selectedNode.data.source_type">
-                    <ElOption label="文本" value="text" />
-                    <ElOption label="URL" value="url" />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem label="内容 / 地址">
-                  <ElInput
-                    v-model="selectedNode.data.value"
-                    type="textarea"
-                    :rows="4"
-                  />
-                </ElFormItem>
+                <PanelSection title="数据源" icon="lucide:folder-input">
+                  <ElFormItem label="数据源类型">
+                    <ElSelect v-model="selectedNode.data.source_type">
+                      <ElOption label="文本" value="text" />
+                      <ElOption label="URL" value="url" />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem label="内容 / 地址">
+                    <VarInput
+                      v-model="selectedNode.data.value"
+                      type="textarea"
+                      :rows="4"
+                      :variables="upstreamVars"
+                    />
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- document-extractor -->
               <template v-if="selectedNode.type === 'document-extractor'">
-                <ElFormItem label="输入变量">
-                  <ElInput v-model="selectedNode.data.input" />
-                </ElFormItem>
-                <p class="wf-hint">
-                  从输入中抽取纯文本并规整空白，输出到 node.text。
-                </p>
+                <PanelSection title="提取" icon="lucide:file-text">
+                  <ElFormItem label="输入变量">
+                    <VarInput
+                      v-model="selectedNode.data.input"
+                      :variables="upstreamVars"
+                    />
+                  </ElFormItem>
+                  <p class="wf-hint">
+                    从输入中抽取纯文本并规整空白，输出到 node.text。
+                  </p>
+                </PanelSection>
               </template>
 
               <!-- knowledge-index -->
               <template v-if="selectedNode.type === 'knowledge-index'">
-                <ElFormItem :label="$t('agentscope.menu.knowledge')">
-                  <ElSelect v-model="selectedNode.data.kb_id">
-                    <ElOption
-                      v-for="k in kbs"
-                      :key="k.kb.id"
-                      :label="k.kb.name"
-                      :value="k.kb.id"
+                <PanelSection title="写入" icon="lucide:database">
+                  <ElFormItem :label="$t('agentscope.menu.knowledge')">
+                    <ElSelect v-model="selectedNode.data.kb_id">
+                      <ElOption
+                        v-for="k in kbs"
+                        :key="k.kb.id"
+                        :label="k.kb.name"
+                        :value="k.kb.id"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem label="写入内容">
+                    <VarInput
+                      v-model="selectedNode.data.input"
+                      :variables="upstreamVars"
                     />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem label="写入内容">
-                  <ElInput v-model="selectedNode.data.input" />
-                </ElFormItem>
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- code -->
               <template v-if="selectedNode.type === 'code'">
-                <ElFormItem label="语言">
-                  <ElSelect v-model="selectedNode.data.language">
-                    <ElOption label="Python" value="python" />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem label="输入变量">
+                <PanelSection title="输入变量" icon="lucide:braces">
                   <div class="wf-rows">
                     <div
                       v-for="(v, i) in selectedNode.data.variables"
@@ -1291,10 +1500,7 @@ onMounted(load);
                       class="wf-row"
                     >
                       <ElInput v-model="v.name" placeholder="变量名" />
-                      <ElInput
-                        v-model="v.value"
-                        placeholder="{{start.query}}"
-                      />
+                      <VarInput v-model="v.value" :variables="upstreamVars" />
                       <ElButton
                         link
                         type="danger"
@@ -1311,265 +1517,317 @@ onMounted(load);
                       添加变量
                     </ElButton>
                   </div>
-                </ElFormItem>
-                <ElFormItem label="代码（赋值 outputs 字典）">
-                  <ElInput
-                    v-model="selectedNode.data.code"
-                    type="textarea"
-                    :rows="6"
-                    style="font-family: monospace"
-                  />
-                </ElFormItem>
+                </PanelSection>
+                <PanelSection title="代码" icon="lucide:code">
+                  <ElFormItem label="语言">
+                    <ElSelect v-model="selectedNode.data.language">
+                      <ElOption label="Python" value="python" />
+                      <ElOption label="JavaScript" value="javascript" />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem label="代码（赋值 outputs 字典）">
+                    <CodeEditor
+                      v-model="selectedNode.data.code"
+                      :language="
+                        selectedNode.data.language === 'javascript'
+                          ? 'javascript'
+                          : 'python'
+                      "
+                      :min-height="180"
+                    />
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- http-request -->
               <template v-if="selectedNode.type === 'http-request'">
-                <ElFormItem label="方法">
-                  <ElSelect v-model="selectedNode.data.method">
-                    <ElOption
-                      v-for="m in ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']"
-                      :key="m"
-                      :label="m"
-                      :value="m"
+                <PanelSection title="请求" icon="lucide:globe">
+                  <ElFormItem label="方法">
+                    <ElSelect v-model="selectedNode.data.method">
+                      <ElOption
+                        v-for="m in ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']"
+                        :key="m"
+                        :label="m"
+                        :value="m"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem label="URL">
+                    <VarInput
+                      v-model="selectedNode.data.url"
+                      :variables="upstreamVars"
                     />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem label="URL">
-                  <ElInput v-model="selectedNode.data.url" />
-                </ElFormItem>
-                <ElFormItem label="请求头 (JSON)">
-                  <ElInput
-                    v-model="httpHeadersText"
-                    type="textarea"
-                    :rows="2"
-                    @change="commitJson(httpHeadersText, 'headers', '请求头')"
-                  />
-                </ElFormItem>
-                <ElFormItem label="Query 参数 (JSON)">
-                  <ElInput
-                    v-model="httpParamsText"
-                    type="textarea"
-                    :rows="2"
-                    @change="commitJson(httpParamsText, 'params', 'Query 参数')"
-                  />
-                </ElFormItem>
-                <ElFormItem label="请求体">
-                  <ElInput
-                    v-model="selectedNode.data.body"
-                    type="textarea"
-                    :rows="3"
-                  />
-                </ElFormItem>
-                <ElFormItem label="超时（秒）">
-                  <ElInputNumber
-                    v-model="selectedNode.data.timeout"
-                    :min="1"
-                    :max="300"
-                  />
-                </ElFormItem>
+                  </ElFormItem>
+                  <ElFormItem label="请求头 (JSON)">
+                    <JsonEditor
+                      :model-value="httpHeadersText"
+                      :min-height="80"
+                      @update:model-value="onHttpHeadersInput"
+                    />
+                  </ElFormItem>
+                  <ElFormItem label="Query 参数 (JSON)">
+                    <JsonEditor
+                      :model-value="httpParamsText"
+                      :min-height="80"
+                      @update:model-value="onHttpParamsInput"
+                    />
+                  </ElFormItem>
+                  <ElFormItem label="请求体">
+                    <VarInput
+                      v-model="selectedNode.data.body"
+                      type="textarea"
+                      :rows="3"
+                      :variables="upstreamVars"
+                    />
+                  </ElFormItem>
+                </PanelSection>
+                <PanelSection title="高级" icon="lucide:sliders-horizontal">
+                  <ElFormItem label="超时（秒）">
+                    <ElInputNumber
+                      v-model="selectedNode.data.timeout"
+                      :min="1"
+                      :max="300"
+                    />
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- tool -->
               <template v-if="selectedNode.type === 'tool'">
-                <ElFormItem label="工具">
-                  <ElSelect v-model="selectedNode.data.tool">
-                    <ElOption
-                      v-for="t in toolOptions"
-                      :key="t.value"
-                      :label="t.label"
-                      :value="t.value"
+                <PanelSection title="工具" icon="lucide:wrench">
+                  <ElFormItem label="工具">
+                    <ElSelect v-model="selectedNode.data.tool">
+                      <ElOption
+                        v-for="t in toolOptions"
+                        :key="t.value"
+                        :label="t.label"
+                        :value="t.value"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem label="参数 (JSON)">
+                    <JsonEditor
+                      :model-value="toolParamsText"
+                      :min-height="100"
+                      @update:model-value="onToolParamsInput"
                     />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem label="参数 (JSON)">
-                  <ElInput
-                    v-model="toolParamsText"
-                    type="textarea"
-                    :rows="3"
-                    @change="commitJson(toolParamsText, 'parameters', '参数')"
-                  />
-                </ElFormItem>
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- list-operator -->
               <template v-if="selectedNode.type === 'list-operator'">
-                <ElFormItem label="输入列表变量">
-                  <ElInput
-                    v-model="selectedNode.data.variable"
-                    placeholder="如 node.result"
-                  />
-                </ElFormItem>
-                <ElFormItem label="过滤字段">
-                  <ElInput v-model="selectedNode.data.filter_field" />
-                </ElFormItem>
-                <ElFormItem label="过滤运算符">
-                  <ElSelect v-model="selectedNode.data.filter_operator">
-                    <ElOption
-                      v-for="op in operators"
-                      :key="op"
-                      :label="op"
-                      :value="op"
+                <PanelSection title="输入" icon="lucide:list-filter">
+                  <ElFormItem label="输入列表变量">
+                    <VarInput
+                      v-model="selectedNode.data.variable"
+                      placeholder="如 node.result"
+                      :variables="upstreamVars"
                     />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem label="过滤值">
-                  <ElInput v-model="selectedNode.data.filter_value" />
-                </ElFormItem>
-                <ElFormItem label="排序">
-                  <ElSelect v-model="selectedNode.data.order" clearable>
-                    <ElOption label="升序" value="asc" />
-                    <ElOption label="降序" value="desc" />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem label="排序字段">
-                  <ElInput v-model="selectedNode.data.order_field" />
-                </ElFormItem>
-                <ElFormItem label="限制数量（0 不限制）">
-                  <ElInputNumber v-model="selectedNode.data.limit" :min="0" />
-                </ElFormItem>
-                <ElFormItem label="提取字段">
-                  <ElInput v-model="selectedNode.data.extract_field" />
-                </ElFormItem>
+                  </ElFormItem>
+                </PanelSection>
+                <PanelSection title="过滤" icon="lucide:filter">
+                  <ElFormItem label="过滤字段">
+                    <ElInput v-model="selectedNode.data.filter_field" />
+                  </ElFormItem>
+                  <ElFormItem label="过滤运算符">
+                    <ElSelect v-model="selectedNode.data.filter_operator">
+                      <ElOption
+                        v-for="op in operators"
+                        :key="op"
+                        :label="op"
+                        :value="op"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem label="过滤值">
+                    <VarInput
+                      v-model="selectedNode.data.filter_value"
+                      :variables="upstreamVars"
+                    />
+                  </ElFormItem>
+                </PanelSection>
+                <PanelSection title="排序 / 截取" icon="lucide:arrow-down-up">
+                  <ElFormItem label="排序">
+                    <ElSelect v-model="selectedNode.data.order" clearable>
+                      <ElOption label="升序" value="asc" />
+                      <ElOption label="降序" value="desc" />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem label="排序字段">
+                    <ElInput v-model="selectedNode.data.order_field" />
+                  </ElFormItem>
+                  <ElFormItem label="限制数量（0 不限制）">
+                    <ElInputNumber v-model="selectedNode.data.limit" :min="0" />
+                  </ElFormItem>
+                  <ElFormItem label="提取字段">
+                    <ElInput v-model="selectedNode.data.extract_field" />
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- iteration -->
               <template v-if="selectedNode.type === 'iteration'">
-                <ElFormItem label="输入列表变量">
-                  <ElInput
-                    v-model="selectedNode.data.input"
-                    placeholder="如 node.result"
-                  />
-                </ElFormItem>
-                <ElFormItem label="每项模板（可用变量 item / index）">
-                  <ElInput
-                    v-model="selectedNode.data.item_template"
-                    type="textarea"
-                    :rows="3"
-                  />
-                </ElFormItem>
-                <ElFormItem label="最大迭代项">
-                  <ElInputNumber
-                    v-model="selectedNode.data.max_items"
-                    :min="1"
-                    :max="1000"
-                  />
-                </ElFormItem>
+                <PanelSection title="迭代" icon="lucide:repeat">
+                  <ElFormItem label="输入列表变量">
+                    <VarInput
+                      v-model="selectedNode.data.input"
+                      placeholder="如 node.result"
+                      :variables="upstreamVars"
+                    />
+                  </ElFormItem>
+                  <ElFormItem label="每项模板（可用变量 item / index）">
+                    <VarInput
+                      v-model="selectedNode.data.item_template"
+                      type="textarea"
+                      :rows="3"
+                      :variables="iterationVars"
+                    />
+                  </ElFormItem>
+                  <ElFormItem label="最大迭代项">
+                    <ElInputNumber
+                      v-model="selectedNode.data.max_items"
+                      :min="1"
+                      :max="1000"
+                    />
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- loop -->
               <template v-if="selectedNode.type === 'loop'">
-                <ElFormItem label="每轮模板（可用变量 loop_index）">
-                  <ElInput
-                    v-model="selectedNode.data.template"
-                    type="textarea"
-                    :rows="3"
-                  />
-                </ElFormItem>
-                <ElFormItem label="最大循环次数">
-                  <ElInputNumber
-                    v-model="selectedNode.data.max_loops"
-                    :min="1"
-                    :max="100"
-                  />
-                </ElFormItem>
-                <ElFormItem label="终止条件变量">
-                  <ElInput v-model="selectedNode.data.break_when.variable" />
-                </ElFormItem>
-                <ElFormItem label="终止运算符">
-                  <ElSelect v-model="selectedNode.data.break_when.operator">
-                    <ElOption
-                      v-for="op in operators"
-                      :key="op"
-                      :label="op"
-                      :value="op"
+                <PanelSection title="循环" icon="lucide:rotate-cw">
+                  <ElFormItem label="每轮模板（可用变量 loop_index）">
+                    <VarInput
+                      v-model="selectedNode.data.template"
+                      type="textarea"
+                      :rows="3"
+                      :variables="loopVars"
                     />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem label="终止比较值">
-                  <ElInput v-model="selectedNode.data.break_when.value" />
-                </ElFormItem>
+                  </ElFormItem>
+                  <ElFormItem label="最大循环次数">
+                    <ElInputNumber
+                      v-model="selectedNode.data.max_loops"
+                      :min="1"
+                      :max="100"
+                    />
+                  </ElFormItem>
+                </PanelSection>
+                <PanelSection title="终止条件" icon="lucide:circle-stop">
+                  <ElFormItem label="终止条件变量">
+                    <VarInput
+                      v-model="selectedNode.data.break_when.variable"
+                      :variables="loopVars"
+                    />
+                  </ElFormItem>
+                  <ElFormItem label="终止运算符">
+                    <ElSelect v-model="selectedNode.data.break_when.operator">
+                      <ElOption
+                        v-for="op in operators"
+                        :key="op"
+                        :label="op"
+                        :value="op"
+                      />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem label="终止比较值">
+                    <ElInput v-model="selectedNode.data.break_when.value" />
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- human-input -->
               <template v-if="selectedNode.type === 'human-input'">
-                <ElFormItem label="提示语">
-                  <ElInput v-model="selectedNode.data.prompt" />
-                </ElFormItem>
-                <ElFormItem label="默认回填值（测试运行时使用）">
-                  <ElInput
-                    v-model="selectedNode.data.default"
-                    type="textarea"
-                    :rows="2"
-                  />
-                </ElFormItem>
+                <PanelSection title="人工输入" icon="lucide:user-check">
+                  <ElFormItem label="提示语">
+                    <ElInput v-model="selectedNode.data.prompt" />
+                  </ElFormItem>
+                  <ElFormItem label="默认回填值（测试运行时使用）">
+                    <VarInput
+                      v-model="selectedNode.data.default"
+                      type="textarea"
+                      :rows="2"
+                      :variables="upstreamVars"
+                    />
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- assigner -->
               <template v-if="selectedNode.type === 'assigner'">
-                <ElFormItem label="变量赋值">
-                  <div class="wf-rows">
-                    <div
-                      v-for="(a, i) in selectedNode.data.assignments"
-                      :key="i"
-                      class="wf-row"
-                    >
-                      <ElInput v-model="a.variable" placeholder="变量名" />
-                      <ElInput v-model="a.value" placeholder="值或 {{ref}}" />
-                      <ElButton
-                        link
-                        type="danger"
-                        @click="removeRow('assignments', i)"
+                <PanelSection title="变量赋值" icon="lucide:variable">
+                  <ElFormItem label="变量赋值">
+                    <div class="wf-rows">
+                      <div
+                        v-for="(a, i) in selectedNode.data.assignments"
+                        :key="i"
+                        class="wf-row"
                       >
-                        <IconifyIcon icon="lucide:trash-2" />
+                        <ElInput v-model="a.variable" placeholder="变量名" />
+                        <VarInput
+                          v-model="a.value"
+                          placeholder="值或 {{ref}}"
+                          :variables="upstreamVars"
+                        />
+                        <ElButton
+                          link
+                          type="danger"
+                          @click="removeRow('assignments', i)"
+                        >
+                          <IconifyIcon icon="lucide:trash-2" />
+                        </ElButton>
+                      </div>
+                      <ElButton
+                        size="small"
+                        @click="
+                          pushRow('assignments', { variable: '', value: '' })
+                        "
+                      >
+                        <IconifyIcon icon="lucide:plus" />
+                        添加赋值
                       </ElButton>
                     </div>
-                    <ElButton
-                      size="small"
-                      @click="
-                        pushRow('assignments', { variable: '', value: '' })
-                      "
-                    >
-                      <IconifyIcon icon="lucide:plus" />
-                      添加赋值
-                    </ElButton>
-                  </div>
-                </ElFormItem>
+                  </ElFormItem>
+                </PanelSection>
               </template>
 
               <!-- variable-aggregator -->
               <template v-if="selectedNode.type === 'variable-aggregator'">
-                <ElFormItem label="聚合模式">
-                  <ElSelect v-model="selectedNode.data.mode">
-                    <ElOption label="第一个非空值" value="first" />
-                    <ElOption label="合并为数组" value="array" />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem label="变量引用">
-                  <div class="wf-rows">
-                    <div
-                      v-for="(v, i) in selectedNode.data.variables"
-                      :key="i"
-                      :title="String(v)"
-                      class="wf-row"
-                    >
-                      <ElInput
-                        v-model="selectedNode.data.variables[i]"
-                        placeholder="如 nodeA.text"
-                      />
-                      <ElButton
-                        link
-                        type="danger"
-                        @click="removeRow('variables', i)"
+                <PanelSection title="变量聚合" icon="lucide:combine">
+                  <ElFormItem label="聚合模式">
+                    <ElSelect v-model="selectedNode.data.mode">
+                      <ElOption label="第一个非空值" value="first" />
+                      <ElOption label="合并为数组" value="array" />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem label="变量引用">
+                    <div class="wf-rows">
+                      <div
+                        v-for="(v, i) in selectedNode.data.variables"
+                        :key="i"
+                        :title="String(v)"
+                        class="wf-row"
                       >
-                        <IconifyIcon icon="lucide:trash-2" />
+                        <VarInput
+                          v-model="selectedNode.data.variables[i]"
+                          placeholder="如 nodeA.text"
+                          :variables="upstreamVars"
+                        />
+                        <ElButton
+                          link
+                          type="danger"
+                          @click="removeRow('variables', i)"
+                        >
+                          <IconifyIcon icon="lucide:trash-2" />
+                        </ElButton>
+                      </div>
+                      <ElButton size="small" @click="pushRow('variables', '')">
+                        <IconifyIcon icon="lucide:plus" />
+                        添加引用
                       </ElButton>
                     </div>
-                    <ElButton size="small" @click="pushRow('variables', '')">
-                      <IconifyIcon icon="lucide:plus" />
-                      添加引用
-                    </ElButton>
-                  </div>
-                </ElFormItem>
+                  </ElFormItem>
+                </PanelSection>
               </template>
             </ElForm>
           </div>
@@ -1713,6 +1971,21 @@ onMounted(load);
   color: var(--el-text-color-secondary);
 }
 
+.wf-varhint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-text-color-secondary);
+}
+
+.wf-varhint code {
+  padding: 1px 5px;
+  font-family: ui-monospace, monospace;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border-radius: 4px;
+}
+
 .wf-rows {
   display: flex;
   flex-direction: column;
@@ -1733,7 +2006,7 @@ onMounted(load);
 }
 
 .wf-config {
-  width: 340px;
+  width: 360px;
   background: var(--el-bg-color);
   border-left: 1px solid var(--el-border-color-light);
 }

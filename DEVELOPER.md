@@ -94,7 +94,15 @@ The executor (`server/app/workflow/engine.py`) does:
 
 Output is **Server-Sent Events**. Frame types (field `type`): `workflow_started`, `node_started`, `text_delta`, `node_finished`, `workflow_finished` (carries the final `output`), `error`. The frontend client (`src/api/agentscope/workflow.ts`) and the CLI (`workflow run`) both parse these.
 
-Built-in node types: `start`, `llm`, `agent`, `knowledge`, `condition`, `template`, `answer` (alias `end`).
+Built-in node types: `start`, `llm`, `agent`, `knowledge`, `ontology`, `condition`, `template`, `answer` (alias `end`).
+
+The **`ontology`** node (Palantir-style) runs one of three operations against a bound ontology and is handled by `_run_ontology()` in `engine.py`:
+
+- `query` — semantic search over object instances (`object_type`, `search`, `filters`, `limit`)
+- `traverse` — follow a link from a source object (`link_type`, `source_object_id`)
+- `execute_action` — invoke an action type, mutating instance state (`action`, `object_id`, `parameters`)
+
+Its result is exposed as both `{{<id>.result}}` (structured) and `{{<id>.text}}` (JSON string). The editor config panel (`views/agentscope/workflow/editor.vue`) shows operation-dependent fields, driven by `selectedNode.data.operation`.
 
 ---
 
@@ -172,9 +180,16 @@ Identity: read the caller via the `X-User-ID` header (see `publish/router.py`'s 
 
 ## 7. Recipe: knowledge pipeline & retrieval
 
-The ingestion pipeline (`server/app/knowledge/pipeline.py`) runs the stages configured on the `KnowledgeBase.pipeline` list: **extract → clean → split → index**. `split` honours `chunk_size` / `chunk_overlap` / `separator`; `index` computes a term-frequency vector per chunk. Retrieval is TF-IDF cosine similarity (`rank()`), so there are **no external embedding dependencies**.
+A knowledge base is created by picking a **chunk strategy** × **index method**; the backend's `build_pipeline()` (`server/app/knowledge/pipeline.py`) derives the stage list from that choice. The frontend mirrors this in `buildPreview()` so the create dialog shows a live pipeline preview.
 
-To add a pipeline stage (e.g. a `dedupe` step), extend `run_pipeline()` to handle the new `stage["type"]`, then add a config card for it in the Pipeline tab of `views/agentscope/knowledge/index.vue`.
+Stages: **extract → clean → split | split_parent_child → [embed | build_graph] → index**.
+
+- chunk strategy `general` → `split`; `parent_child` → `split_parent_child` (large parent + small child chunks, child used for matching, parent returned as context).
+- index method drives the indexer stage: `keyword` → TF-IDF only; `vector` → `embed` (hash-based 256-dim L2 vectors, no external deps); `knowledge_graph` → `build_graph` (LLM triple extraction via `graph.py`, needs `kg_credential_id` + `kg_type` + `kg_model`); `hybrid` → graph + keyword (0.7/0.3 blend).
+
+Recall testing (`POST /admin/knowledge-bases/{id}/retrieve`) returns method-specific output: scores for vector, parent context for parent-child, matched triples for knowledge-graph. The retrieve panel can override the method per query.
+
+To add a pipeline stage (e.g. a `dedupe` step), extend `run_pipeline()` to handle the new `stage["type"]`, add it to `build_pipeline()` if it should be auto-derived, then mirror it in `buildPreview()` and add a `STAGE_ICON` entry + config card in `views/agentscope/knowledge/index.vue`.
 
 The same retrieval is exposed to agents as the `knowledge_search` tool (`server/app/knowledge/tools.py`), injected via the combined tool factory in `main.py`. Tools must return AgentScope `ToolChunk` objects (not `ToolResponse`) or results are silently dropped.
 

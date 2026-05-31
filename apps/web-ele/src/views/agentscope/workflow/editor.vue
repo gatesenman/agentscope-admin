@@ -637,8 +637,23 @@ async function save() {
 const runDrawer = ref(false);
 const running = ref(false);
 const runInputs = ref<Record<string, any>>({});
-const runLog = ref<{ text: string; type: string }[]>([]);
+const runLog = ref<{ detail?: string; text: string; type: string }[]>([]);
 const runAnswer = ref('');
+const nodeTitles = ref<Record<string, string>>({});
+
+function previewOutput(output: any): string {
+  if (output === null || output === undefined) return '';
+  if (typeof output === 'string') return output.slice(0, 600);
+  if (typeof output === 'object') {
+    const text = (output as Record<string, any>).text;
+    const body =
+      typeof text === 'string' && text.length > 0
+        ? text
+        : JSON.stringify(output, null, 2);
+    return body.length > 600 ? `${body.slice(0, 600)}…` : body;
+  }
+  return String(output);
+}
 
 const startVariables = computed<{ name: string; type: string }[]>(() => {
   const start = (toObject().nodes ?? []).find((n: any) => n.type === 'start');
@@ -650,6 +665,7 @@ function openRun() {
   for (const v of startVariables.value) runInputs.value[v.name] = '';
   runLog.value = [];
   runAnswer.value = '';
+  nodeTitles.value = {};
   runDrawer.value = true;
 }
 
@@ -670,11 +686,19 @@ async function doRun() {
             break;
           }
           case 'node_finished': {
-            runLog.value.push({ type: 'done', text: ev.node_id ?? '' });
+            const nid = ev.node_id ?? '';
+            const label = nodeTitles.value[nid] ?? nid;
+            runLog.value.push({
+              type: 'done',
+              text: label,
+              detail: previewOutput(ev.output),
+            });
 
             break;
           }
           case 'node_started': {
+            if (ev.node_id)
+              nodeTitles.value[ev.node_id] = ev.title ?? ev.node_id;
             runLog.value.push({ type: 'node', text: ev.title ?? '' });
 
             break;
@@ -1574,29 +1598,46 @@ onMounted(load);
         style="margin-top: 16px"
         :header="$t('agentscope.workflow.executionLog')"
       >
-        <div
-          v-for="(l, i) in runLog"
-          :key="i"
-          :style="{ color: l.type === 'error' ? '#ef4444' : undefined }"
-          style="
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            font-family: monospace;
-            font-size: 12px;
-            line-height: 1.8;
-          "
-        >
-          <IconifyIcon
-            :icon="
-              l.type === 'error'
-                ? 'lucide:x-circle'
-                : l.type === 'node'
-                  ? 'lucide:play'
-                  : 'lucide:check'
+        <div v-for="(l, i) in runLog" :key="i" style="margin-bottom: 4px">
+          <div
+            :style="{ color: l.type === 'error' ? '#ef4444' : undefined }"
+            style="
+              display: flex;
+              gap: 6px;
+              align-items: center;
+              font-family: monospace;
+              font-size: 12px;
+              line-height: 1.8;
             "
-          />
-          {{ l.text }}
+          >
+            <IconifyIcon
+              :icon="
+                l.type === 'error'
+                  ? 'lucide:x-circle'
+                  : l.type === 'node'
+                    ? 'lucide:play'
+                    : 'lucide:check'
+              "
+            />
+            {{ l.text }}
+          </div>
+          <div
+            v-if="l.detail"
+            style="
+              padding: 6px 8px;
+              margin: 2px 0 0 20px;
+              font-family: monospace;
+              font-size: 11px;
+              line-height: 1.5;
+              color: var(--el-text-color-regular);
+              overflow-wrap: anywhere;
+              white-space: pre-wrap;
+              background: var(--el-fill-color-light);
+              border-radius: 4px;
+            "
+          >
+            {{ l.detail }}
+          </div>
         </div>
       </ElCard>
 

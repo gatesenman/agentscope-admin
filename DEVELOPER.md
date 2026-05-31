@@ -93,7 +93,9 @@ The executor (`server/app/workflow/engine.py`) does:
 4. **Template resolution** (`_resolve`) — replaces `{{node_id.field}}` tokens using the accumulated `self.context` (e.g. `{{start.query}}`, `{{kb.text}}`, `{{llm.text}}`).
 5. **Branching** — a `condition` node writes `branch[nid] = "true"|"false"`; downstream edges are only activated if their `sourceHandle` matches.
 
-Output is **Server-Sent Events**. Frame types (field `type`): `workflow_started`, `node_started`, `text_delta`, `node_finished`, `workflow_finished` (carries the final `output`), `error`. The frontend client (`src/api/agentscope/workflow.ts`) and the CLI (`workflow run`) both parse these.
+Output is **Server-Sent Events**. Frame types (field `type`): `workflow_started`, `node_started` (carries `node_id` / `title`), `text_delta`, `node_finished` (carries `node_id` + the node's full `output` dict), `workflow_finished` (carries the final `output`), `error`. The frontend client (`src/api/agentscope/workflow.ts`) and the CLI (`workflow run`) both parse these.
+
+The editor's **Run** drawer (`editor.vue → doRun()`) renders a Dify-style per-node execution trace: each `node_started` is logged by title and each `node_finished` prints that node's output (its `text`, or pretty-printed JSON) inline, so you can debug how every node transformed the data before the final answer.
 
 Built-in node types — the engine covers the **full Dify node catalogue** plus our Palantir-style `ontology` node:
 

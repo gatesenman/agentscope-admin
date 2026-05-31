@@ -9,6 +9,7 @@ export * as modelApi from './model';
 export * as observabilityApi from './observability';
 export * as ontologyApi from './ontology';
 export * as publishApi from './publish';
+export * as rbacApi from './rbac';
 export * from './request';
 export * as scheduleApi from './schedule';
 export * as sessionApi from './session';

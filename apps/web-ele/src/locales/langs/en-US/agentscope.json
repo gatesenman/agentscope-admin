@@ -13,7 +13,8 @@
     "workflow": "Workflows",
     "knowledge": "Knowledge",
     "mcp": "MCP Servers",
-    "observability": "Observability"
+    "observability": "Observability",
+    "users": "Users & Roles"
   },
   "common": {
     "create": "Create",
@@ -278,5 +279,15 @@
     "calls": "Calls",
     "time": "Time",
     "source": "Source"
+  },
+  "rbac": {
+    "members": "Members",
+    "username": "Username",
+    "displayName": "Display Name",
+    "role": "Role",
+    "roleCatalog": "Role Catalog",
+    "addUser": "Add Member",
+    "editUser": "Edit Member",
+    "usernameRequired": "Username is required"
   }
 }

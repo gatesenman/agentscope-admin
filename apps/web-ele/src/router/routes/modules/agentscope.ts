@@ -132,6 +132,15 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        name: 'AgentScopeUsers',
+        path: '/agentscope/users',
+        component: () => import('#/views/agentscope/users/index.vue'),
+        meta: {
+          icon: 'lucide:users',
+          title: $t('agentscope.menu.users'),
+        },
+      },
+      {
         name: 'AgentScopeIntegration',
         path: '/agentscope/integration',
         component: () => import('#/views/agentscope/integration/index.vue'),

@@ -26,6 +26,7 @@ def init_db() -> None:
     from ..observability import models as _obs_models  # noqa: F401
     from ..preferences import models as _pref_models  # noqa: F401
     from ..publish import models as _pub_models  # noqa: F401
+    from ..rbac import models as _rbac_models  # noqa: F401
     from ..workflow import models as _wf_models  # noqa: F401
 
     SQLModel.metadata.create_all(engine)

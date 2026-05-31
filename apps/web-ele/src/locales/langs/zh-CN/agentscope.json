@@ -13,7 +13,8 @@
     "workflow": "工作流编排",
     "knowledge": "知识库",
     "mcp": "MCP 服务器",
-    "observability": "可观测性"
+    "observability": "可观测性",
+    "users": "用户与角色"
   },
   "common": {
     "create": "新建",
@@ -278,5 +279,15 @@
     "calls": "调用次数",
     "time": "时间",
     "source": "来源"
+  },
+  "rbac": {
+    "members": "成员",
+    "username": "用户名",
+    "displayName": "显示名",
+    "role": "角色",
+    "roleCatalog": "角色权限目录",
+    "addUser": "新增成员",
+    "editUser": "编辑成员",
+    "usernameRequired": "请输入用户名"
   }
 }

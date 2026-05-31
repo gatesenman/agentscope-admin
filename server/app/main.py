@@ -23,6 +23,8 @@ from .ontology.router import router as ontology_router
 from .ontology.tools import ontology_tools_factory
 from .preferences.router import router as preferences_router
 from .publish.router import router as publish_router
+from .rbac.router import router as rbac_router
+from .rbac.router import seed_default_admin
 from .settings import get_settings
 from .workflow.router import router as workflow_router
 
@@ -73,6 +75,8 @@ def build_app():
     app.include_router(workflow_router)
     app.include_router(mcp_registry_router)
     app.include_router(observability_router)
+    app.include_router(rbac_router)
+    seed_default_admin()
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict:

@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>数据模型 Data Model · AgentScope Admin Wiki</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">AS</div>
+    <div>
+      <div class="title">AgentScope Admin</div>
+      <div class="subtitle">项目 Wiki（静态）</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="nav-group-label">入门</div>
+    <a href="01-overview.html">概览 Overview</a>
+    <a href="02-architecture.html">架构 Architecture</a>
+    <a href="03-data-model.html" class="active">数据模型 Data Model</a>
+    <div class="nav-group-label">核心能力</div>
+    <a href="04-ontology.html">本体与语义层 Ontology</a>
+    <a href="05-agents.html">智能体与模型配置 Agents</a>
+    <a href="06-workflow.html">工作流编排 Workflow</a>
+    <a href="07-knowledge.html">知识库与流水线 Knowledge</a>
+    <a href="08-orchestration.html">多智能体编排 Orchestration</a>
+    <a href="09-publish.html">发布与集成 Publishing</a>
+    <a href="10-platform-services.html">平台服务 Platform Services</a>
+    <div class="nav-group-label">参考</div>
+    <a href="11-api-reference.html">API 参考 API Reference</a>
+    <a href="12-developer-guide.html">二次开发指南 Developer Guide</a>
+    <a href="13-roadmap.html">路线图与缺口 Roadmap</a>
+    <a href="14-running.html">运行与开发 Running</a>
+  </nav>
+</aside>
+<main class="content">
+<h1 id="data-model">数据模型 / Data Model</h1>
+<p>本页汇总平台扩展部分（SQLite / SQLModel）的全部数据表。AgentScope 自身的智能体 / 会话 / 凭证由其内置存储管理，不在此列。</p>
+<blockquote>
+<p>约定：所有表的主键 <code>id</code> 默认是 32 位十六进制 UUID；带 JSON 的字段以 <code>dict</code>/<code>list</code> 形式存于 SQLite 的 JSON 列；多数业务表带 <code>owner_user_id</code> 用于归属隔离。</p>
+</blockquote>
+<h2 id="appontologymodelspy">本体相关（<code>app/ontology/models.py</code>）</h2>
+<h3 id="ontology">Ontology — 本体（命名空间）</h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td>str(PK)</td>
+<td></td>
+</tr>
+<tr>
+<td>api_name</td>
+<td>str(unique)</td>
+<td>程序名（唯一）</td>
+</tr>
+<tr>
+<td>display_name</td>
+<td>str</td>
+<td>展示名</td>
+</tr>
+<tr>
+<td>description</td>
+<td>str</td>
+<td>描述</td>
+</tr>
+<tr>
+<td>created_at / updated_at</td>
+<td>datetime</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="datasource">Datasource — 数据源（对象类型的数据出处）</h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td>str(PK)</td>
+<td></td>
+</tr>
+<tr>
+<td>ontology_id</td>
+<td>FK→ontology</td>
+<td>所属本体</td>
+</tr>
+<tr>
+<td>api_name / display_name / description</td>
+<td>str</td>
+<td></td>
+</tr>
+<tr>
+<td>kind</td>
+<td>enum</td>
+<td><code>dataset</code> / <code>rest_api</code> / <code>sql</code> / <code>inline</code></td>
+</tr>
+<tr>
+<td>connection</td>
+<td>json</td>
+<td>连接细节（按 kind：dataset→path/format，rest→base_url/path，sql→dsn/table）</td>
+</tr>
+<tr>
+<td>columns</td>
+<td>json[]</td>
+<td>字段 schema：<code>[{"name":"AMT","data_type":"double"}, ...]</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="connector">Connector — 连接器（动作写回的外部系统）</h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td>str(PK)</td>
+<td></td>
+</tr>
+<tr>
+<td>ontology_id</td>
+<td>FK→ontology</td>
+<td></td>
+</tr>
+<tr>
+<td>api_name / display_name / description</td>
+<td>str</td>
+<td></td>
+</tr>
+<tr>
+<td>kind</td>
+<td>enum</td>
+<td><code>rest</code> / <code>webhook</code> / <code>sql</code> / <code>internal</code></td>
+</tr>
+<tr>
+<td>config</td>
+<td>json</td>
+<td>连接级配置：base_url / headers / auth</td>
+</tr>
+<tr>
+<td>operations</td>
+<td>json[]</td>
+<td>命名操作：<code>[{"api_name":"freeze","method":"POST","path":"...","params":["reason"]}]</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="objecttype">ObjectType — 对象类型</h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td>str(PK)</td>
+<td></td>
+</tr>
+<tr>
+<td>ontology_id</td>
+<td>FK→ontology</td>
+<td></td>
+</tr>
+<tr>
+<td>api_name / display_name / description</td>
+<td>str</td>
+<td></td>
+</tr>
+<tr>
+<td>icon / color</td>
+<td>str</td>
+<td>展示用</td>
+</tr>
+<tr>
+<td>primary_key_property</td>
+<td>str</td>
+<td>主键属性（默认 <code>id</code>）</td>
+</tr>
+<tr>
+<td>title_property</td>
+<td>str?</td>
+<td>标题属性</td>
+</tr>
+<tr>
+<td><strong>datasource_id</strong></td>
+<td>FK→datasource?</td>
+<td>背靠的数据源（数据血缘）</td>
+</tr>
+<tr>
+<td><strong>backing_table</strong></td>
+<td>str</td>
+<td>数据源内具体表/对象</td>
+</tr>
+</tbody>
+</table>
+<h3 id="propertytype">PropertyType — 对象属性</h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td>str(PK)</td>
+<td></td>
+</tr>
+<tr>
+<td>object_type_id</td>
+<td>FK→object_type</td>
+<td></td>
+</tr>
+<tr>
+<td>api_name / display_name</td>
+<td>str</td>
+<td></td>
+</tr>
+<tr>
+<td>data_type</td>
+<td>enum</td>
+<td>string/integer/double/boolean/date/timestamp/geo_point/array</td>
+</tr>
+<tr>
+<td>required / is_primary_key / is_title</td>
+<td>bool</td>
+<td></td>
+</tr>
+<tr>
+<td>sort_order</td>
+<td>int</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>column_mapping</strong></td>
+<td>str</td>
+<td>映射到数据源的列名（空=与 api_name 同名）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="linktype">LinkType — 连接类型（关系定义）</h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td>str(PK)</td>
+<td></td>
+</tr>
+<tr>
+<td>ontology_id</td>
+<td>FK→ontology</td>
+<td></td>
+</tr>
+<tr>
+<td>api_name / display_name / description</td>
+<td>str</td>
+<td></td>
+</tr>
+<tr>
+<td>source_object_type_id / target_object_type_id</td>
+<td>FK→object_type</td>
+<td>两端对象类型</td>
+</tr>
+<tr>
+<td>cardinality</td>
+<td>enum</td>
+<td>one_to_one / one_to_many / many_to_many</td>
+</tr>
+</tbody>
+</table>
+<h3 id="actiontype">ActionType — 动作类型</h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td>str(PK)</td>
+<td></td>
+</tr>
+<tr>
+<td>ontology_id</td>
+<td>FK→ontology</td>
+<td></td>
+</tr>
+<tr>
+<td>api_name / display_name / description</td>
+<td>str</td>
+<td></td>
+</tr>
+<tr>
+<td>object_type_id</td>
+<td>FK→object_type?</td>
+<td>作用对象类型</td>
+</tr>
+<tr>
+<td>effect</td>
+<td>enum</td>
+<td>create / modify / delete / custom</td>
+</tr>
+<tr>
+<td>parameters</td>
+<td>json</td>
+<td>动作参数 schema</td>
+</tr>
+<tr>
+<td><strong>connector_id</strong></td>
+<td>FK→connector?</td>
+<td>写回目标连接器（可空=仅本体内部）</td>
+</tr>
+<tr>
+<td><strong>connector_operation</strong></td>
+<td>str</td>
+<td>连接器操作 api_name</td>
+</tr>
+<tr>
+<td><strong>parameter_bindings</strong></td>
+<td>json</td>
+<td>动作参数→操作字段映射（action_param→operation_field）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="objectinstance-linkinstance">ObjectInstance / LinkInstance — 实例与关系</h3>
+<ul>
+<li><code>ObjectInstance</code>：某对象类型的一条具体记录，<code>properties</code> 为 JSON。</li>
+<li><code>LinkInstance</code>：<code>link_type_id</code> + <code>source_object_id</code> + <code>target_object_id</code> 三元组。</li>
+</ul>
+<h3 id="agentbinding">AgentBinding — 智能体↔本体绑定</h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>agent_id</td>
+<td>str(PK)</td>
+<td>AgentScope 智能体 ID</td>
+</tr>
+<tr>
+<td>ontology_id</td>
+<td>FK→ontology</td>
+<td>绑定的本体</td>
+</tr>
+<tr>
+<td>enabled</td>
+<td>bool</td>
+<td></td>
+</tr>
+<tr>
+<td>allowed_object_types / allowed_actions</td>
+<td>json[]</td>
+<td>允许清单（空=全部）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="appknowledgemodelspy">知识库相关（<code>app/knowledge/models.py</code>）</h2>
+<ul>
+<li><strong>KnowledgeBase</strong>：<code>chunk_strategy</code>（general/parent_child）× <code>index_method</code>（keyword/vector/knowledge_graph/hybrid），<code>pipeline</code> 为可视化流水线阶段列表，含 <code>top_k</code>/<code>score_threshold</code>，知识图谱方式还带 <code>kg_credential_id</code>/<code>kg_model</code>。</li>
+<li><strong>Document</strong>：原文 + <code>status</code>/<code>chunk_count</code>/<code>triple_count</code>。</li>
+<li><strong>Chunk</strong>：分块文本，含 <code>term_freq</code>（关键词）、<code>embedding</code>（向量）、<code>parent_id</code>/<code>is_parent</code>（父子分块）。</li>
+<li><strong>KnowledgeTriple</strong>：知识图谱三元组 <code>subject</code>/<code>predicate</code>/<code>object</code>。</li>
+</ul>
+<h2 id="_1">其它模块</h2>
+<ul>
+<li><strong>Workflow</strong>（<code>app/workflow/models.py</code>）：<code>graph</code>（nodes/edges 的 JSON DAG）+ <code>owner_user_id</code> + <code>enabled</code>。</li>
+<li><strong>Orchestration</strong>（<code>app/orchestration/models.py</code>）：<code>pattern</code>（6 选 1）+ <code>config</code>（members / coordinator / max_rounds）。</li>
+<li><strong>PublishedApp / AppApiKey</strong>（<code>app/publish/models.py</code>）：公开 token、运行配置快照、开场白/建议问题、<code>allowed_origins</code>/<code>rate_limit_per_min</code>；API Key 存 SHA-256 哈希，仅创建时明文显示一次。</li>
+<li><strong>McpServer</strong>（<code>app/mcp_registry/models.py</code>）：transport（stdio/http）、command/args/env 或 url/headers、工具 allow/deny、健康状态。</li>
+<li><strong>UsageLog / TraceSpan</strong>（<code>app/observability/models.py</code>）：token 用量与执行链路 span。</li>
+<li><strong>User</strong>（<code>app/rbac/models.py</code>）：username + role（admin/editor/viewer）。</li>
+<li><strong>AgentProfile</strong>（<code>app/agent_profile/models.py</code>）：默认凭证/模型、生成参数、兜底模型、<code>permission_mode</code>、<code>stream</code>。</li>
+<li><strong>UserPreferences</strong>（<code>app/preferences/models.py</code>）：前端偏好。</li>
+</ul>
+<h2 id="_2">关系图（核心本体）</h2>
+<div class="codehilite"><pre><span></span><code>Ontology 1───* ObjectType *───1 Datasource
+   │              │  *
+   │              │  └── PropertyType  ── column_mapping ──▶ Datasource.columns[]
+   │              *
+   ├──* LinkType (source/target → ObjectType)
+   ├──* ActionType ── connector_id/operation ──▶ Connector.operations[]
+   ├──* Datasource
+   ├──* Connector
+   *
+ObjectInstance *──* ObjectInstance  (via LinkInstance / LinkType)
+
+AgentBinding: agent_id ──▶ Ontology
+</code></pre></div>
+<div class="page-footer">
+  <span>AgentScope Admin · 静态 Wiki</span>
+  <span>← <a href="02-architecture.html">架构 Architecture</a> &nbsp;|&nbsp; <a href="04-ontology.html">本体与语义层 Ontology</a> →</span>
+</div>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>发布与集成 Publishing · AgentScope Admin Wiki</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">AS</div>
+    <div>
+      <div class="title">AgentScope Admin</div>
+      <div class="subtitle">项目 Wiki（静态）</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="nav-group-label">入门</div>
+    <a href="01-overview.html">概览 Overview</a>
+    <a href="02-architecture.html">架构 Architecture</a>
+    <a href="03-data-model.html">数据模型 Data Model</a>
+    <div class="nav-group-label">核心能力</div>
+    <a href="04-ontology.html">本体与语义层 Ontology</a>
+    <a href="05-agents.html">智能体与模型配置 Agents</a>
+    <a href="06-workflow.html">工作流编排 Workflow</a>
+    <a href="07-knowledge.html">知识库与流水线 Knowledge</a>
+    <a href="08-orchestration.html">多智能体编排 Orchestration</a>
+    <a href="09-publish.html" class="active">发布与集成 Publishing</a>
+    <a href="10-platform-services.html">平台服务 Platform Services</a>
+    <div class="nav-group-label">参考</div>
+    <a href="11-api-reference.html">API 参考 API Reference</a>
+    <a href="12-developer-guide.html">二次开发指南 Developer Guide</a>
+    <a href="13-roadmap.html">路线图与缺口 Roadmap</a>
+    <a href="14-running.html">运行与开发 Running</a>
+  </nav>
+</aside>
+<main class="content">
+<h1 id="publishing-integration">发布与集成 / Publishing &amp; Integration</h1>
+<p>Dify 风格的「发布」：把一个智能体冻结成一个公开 <strong>App</strong>，一个 <code>token</code> 暴露三种集成方式，并配套 API Key 管理。后端 <code>app/publish/</code>，前端 <code>publish/</code>（发布管理）+ <code>webapp/</code>（公开 WebApp 页）。</p>
+<ul>
+<li>模型：<code>PublishedApp</code>（token、运行配置快照、开场白/建议问题、<code>allowed_origins</code>、<code>rate_limit_per_min</code>）+ <code>AppApiKey</code>（SHA-256 哈希，仅创建时明文一次）。</li>
+</ul>
+<h2 id="_1">三种集成方式</h2>
+<h3 id="1-web-app-ui">1. Web App（托管 UI）</h3>
+<ul>
+<li>地址：<code>/app/{token}</code>（公开页 <code>GET /public/apps/{token}</code> 取元信息，<code>POST /public/apps/{token}/chat</code> 流式对话）。</li>
+<li>免登录，可配应用名/图标/开场白/建议问题。</li>
+</ul>
+<h3 id="2-rest-api">2. REST API（接口）</h3>
+<ul>
+<li><code>POST /v1/apps/{token}/chat-messages</code>，Bearer（API Key）鉴权，支持流式(SSE)与阻塞(JSON)。</li>
+<li>API Key：仅创建时显示一次、存哈希、可吊销、记录最近使用。</li>
+</ul>
+<h3 id="3-embed">3. 嵌入（Embed）</h3>
+<ul>
+<li><code>&lt;iframe&gt;</code> 内嵌 + 浮动聊天气泡 <code>&lt;script&gt;</code>（后端 <code>/static/embed.js</code>），一键复制粘到任意网站。</li>
+</ul>
+<h2 id="_2">管理端点</h2>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>端点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>发布/列表</td>
+<td><code>POST/GET /admin/published-apps/</code></td>
+</tr>
+<tr>
+<td>详情/改/删</td>
+<td><code>GET/PATCH/DELETE /admin/published-apps/{app_id}</code></td>
+</tr>
+<tr>
+<td>Key 列表/创建</td>
+<td><code>GET/POST /admin/published-apps/{app_id}/keys</code></td>
+</tr>
+<tr>
+<td>吊销 Key</td>
+<td><code>POST /admin/published-apps/{app_id}/keys/{key_id}/revoke</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="_3">配套能力</h2>
+<ul>
+<li><strong>配置快照</strong>：发布时冻结 model / 参数 / permission_mode，保证线上稳定，不随智能体后续改动而变。</li>
+<li><strong>访问控制</strong>：<code>allowed_origins</code>（嵌入 CORS）、<code>rate_limit_per_min</code> 限流。</li>
+<li><strong>一键复制</strong>：URL、curl 示例、iframe/script 片段（见集成中心页 <code>integration/</code>）。</li>
+</ul>
+<h2 id="curl">cURL 示例</h2>
+<div class="codehilite"><pre><span></span><code>curl<span class="w"> </span>-N<span class="w"> </span>https://YOUR_HOST/v1/apps/<span class="o">{</span>token<span class="o">}</span>/chat-messages<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer {api_key}&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;query&quot;:&quot;你好&quot;,&quot;stream&quot;:true}&#39;</span>
+</code></pre></div>
+<div class="page-footer">
+  <span>AgentScope Admin · 静态 Wiki</span>
+  <span>← <a href="08-orchestration.html">多智能体编排 Orchestration</a> &nbsp;|&nbsp; <a href="10-platform-services.html">平台服务 Platform Services</a> →</span>
+</div>
+</main>
+</div>
+</body>
+</html>

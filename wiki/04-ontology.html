@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本体与语义层 Ontology · AgentScope Admin Wiki</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">AS</div>
+    <div>
+      <div class="title">AgentScope Admin</div>
+      <div class="subtitle">项目 Wiki（静态）</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="nav-group-label">入门</div>
+    <a href="01-overview.html">概览 Overview</a>
+    <a href="02-architecture.html">架构 Architecture</a>
+    <a href="03-data-model.html">数据模型 Data Model</a>
+    <div class="nav-group-label">核心能力</div>
+    <a href="04-ontology.html" class="active">本体与语义层 Ontology</a>
+    <a href="05-agents.html">智能体与模型配置 Agents</a>
+    <a href="06-workflow.html">工作流编排 Workflow</a>
+    <a href="07-knowledge.html">知识库与流水线 Knowledge</a>
+    <a href="08-orchestration.html">多智能体编排 Orchestration</a>
+    <a href="09-publish.html">发布与集成 Publishing</a>
+    <a href="10-platform-services.html">平台服务 Platform Services</a>
+    <div class="nav-group-label">参考</div>
+    <a href="11-api-reference.html">API 参考 API Reference</a>
+    <a href="12-developer-guide.html">二次开发指南 Developer Guide</a>
+    <a href="13-roadmap.html">路线图与缺口 Roadmap</a>
+    <a href="14-running.html">运行与开发 Running</a>
+  </nav>
+</aside>
+<main class="content">
+<h1 id="ontology">本体与语义层 / Ontology</h1>
+<p>平台的核心抽象，对齐 <strong>Palantir Foundry Ontology</strong>。智能体绑定本体后，即可基于语义做<strong>查询</strong>与<strong>操作</strong>（含连接器写回外部系统），而不必直接面对底层数据表与外部 API。</p>
+<h2 id="1">1. 概念分层（自上而下）</h2>
+<div class="codehilite"><pre><span></span><code>本体 Ontology  ── 命名空间，聚合下面所有定义
+│
+├── 数据源 Datasource        ← 对象类型的「后端数据来源」(dataset / REST / SQL / inline)
+│      └── 列 Columns         (name, data_type)
+│
+├── 连接器 Connector          ← 外部系统(rest/webhook/sql/internal)，动作借它把变更写回
+│      └── 操作 Operation      (api_name, method, path, params)
+│
+├── 对象类型 ObjectType       ← 一类实体（“类”），backing = 某个 Datasource + 表
+│      └── 对象属性 PropertyType   ← 字段；每个属性映射到 Datasource 的一列 (column_mapping)
+│
+├── 连接类型 LinkType         ← 两个对象类型之间关系的「定义/Schema」(含基数 cardinality)
+│
+├── 动作类型 ActionType       ← 对对象的参数化操作(create/modify/delete/custom)；
+│                               可绑定 Connector 的某个 Operation（写回外部）
+│
+└── 实例层（运行期数据）
+       ├── 对象实例 ObjectInstance   ← 对象类型的一行具体数据(properties)
+       └── 对象关系 LinkInstance      ← 连接类型的一条具体边(source → target)
+</code></pre></div>
+
+<h2 id="2">2. 六个核心概念</h2>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>角色</th>
+<th>类比(关系库)</th>
+<th>类比(Palantir)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>本体 Ontology</strong></td>
+<td>命名空间，一套语义模型</td>
+<td>database / schema</td>
+<td>Ontology</td>
+</tr>
+<tr>
+<td><strong>对象类型 ObjectType</strong></td>
+<td>实体的“类”</td>
+<td>表 (table)</td>
+<td>Object Type</td>
+</tr>
+<tr>
+<td><strong>对象属性 PropertyType</strong></td>
+<td>对象类型上的字段</td>
+<td>列 (column)</td>
+<td>Property</td>
+</tr>
+<tr>
+<td><strong>连接类型 LinkType</strong></td>
+<td>两类对象间关系的<strong>定义</strong></td>
+<td>外键约束/关联定义</td>
+<td>Link Type</td>
+</tr>
+<tr>
+<td><strong>对象关系 LinkInstance</strong></td>
+<td>关系的<strong>实例</strong>（一条边）</td>
+<td>关联表里的一行</td>
+<td>Link</td>
+</tr>
+<tr>
+<td><strong>动作类型 ActionType</strong></td>
+<td>对对象的参数化写操作</td>
+<td>存储过程/写事务</td>
+<td>Action Type</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>「连接类型」与「对象关系」是同一关系的两层：连接类型是 schema 级定义（谁连谁、基数），对象关系是其运行期实例。</p>
+</blockquote>
+<h2 id="3">3. 两组关键映射（平台的精髓）</h2>
+<h3 id="31-property-dataset-column">3.1 对象属性 ↔ 数据集字段（Property ↔ Dataset Column）</h3>
+<p>每个对象类型由一个数据源支撑；对象类型的每个属性映射到该数据源的某一列：</p>
+<div class="codehilite"><pre><span></span><code>ObjectType(account)  ──backing──&gt;  Datasource(core_banking, kind=sql, table=ACCOUNTS)
+   PropertyType(account_no)  ──column_mapping──&gt;  列 &quot;ACCT_NO&quot;
+   PropertyType(balance)     ──column_mapping──&gt;  列 &quot;BAL_AMT&quot;
+   PropertyType(status)      ──column_mapping──&gt;  列 &quot;ACCT_STATUS&quot;
+</code></pre></div>
+
+<ul>
+<li>作用：让对象具备<strong>数据血缘/出处</strong>，查询结果可追溯到来源列。</li>
+<li>模型字段：<code>ObjectType.datasource_id</code> + <code>ObjectType.backing_table</code>；<code>PropertyType.column_mapping</code>。</li>
+</ul>
+<h3 id="32-action-connector-operation">3.2 动作类型 ↔ 连接器操作（Action ↔ Connector Operation）</h3>
+<p>动作类型除了在本体内部 create/modify/delete，还能绑定一个连接器的具体操作，把变更<strong>写回外部系统</strong>：</p>
+<div class="codehilite"><pre><span></span><code>ActionType(freeze_account)  ──&gt;  Connector(payments_core, kind=rest)
+                                   └─ Operation: &quot;freeze&quot;  POST /accounts/{id}/freeze
+   parameter_bindings: { reason -&gt; &quot;freeze_reason&quot; }     # 动作参数 → 操作字段
+</code></pre></div>
+
+<p>执行 <code>freeze_account</code> 时：① 本体内把账户 status 改为 frozen；② 调用 payments_core 的 freeze 操作写回，结果记入 <code>connector_result</code>（写回失败不阻断本体变更）。</p>
+<ul>
+<li>模型字段：<code>ActionType.connector_id</code> + <code>connector_operation</code> + <code>parameter_bindings</code>。</li>
+</ul>
+<h2 id="4">4. 智能体如何「语义查询 + 语义操作」</h2>
+<p>绑定本体后注入到智能体的工具（见 <code>app/ontology/tools.py</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ontology_list_object_types</code></td>
+<td>发现有哪些对象类型/属性（含数据源来源与列映射），先调它了解数据</td>
+</tr>
+<tr>
+<td><code>ontology_query_objects</code></td>
+<td>按对象类型 + 过滤/搜索做语义查询</td>
+</tr>
+<tr>
+<td><code>ontology_traverse_link</code></td>
+<td>沿连接类型遍历到关联对象</td>
+</tr>
+<tr>
+<td><code>ontology_list_actions</code></td>
+<td>发现可执行的动作 + 参数 + 连接器写回映射</td>
+</tr>
+<tr>
+<td><code>ontology_execute_action</code></td>
+<td>执行动作：内部改图 +（若绑定）经连接器写回外部</td>
+</tr>
+</tbody>
+</table>
+<p>典型语义任务：</p>
+<blockquote>
+<p>“冻结风险评分&gt;0.8 的电汇交易对应的收款账户，并在工单系统立案。”
+→ list → query(交易) → traverse(收款账户) → execute_action(freeze_account，经 payments_core 写回) → execute_action(open_investigation，经 case_management 建单)。</p>
+</blockquote>
+<h2 id="5">5. 标准数据：企业风控本体</h2>
+<p>seed 脚本 <code>server/scripts/seed_risk_ontology.py</code> 会灌入一套自洽的「企业风控」本体：组织 / 人员 / 账户 / 交易 / 订单 / 产品 / 供应商 / 制裁名单 / 风险事件等 9 个对象类型，4 个数据源、4 个连接器、5 个动作（其中 4 个绑定连接器写回），以及对象/关系实例。</p>
+<p>运行：</p>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>server<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python<span class="w"> </span>scripts/seed_risk_ontology.py
+<span class="c1"># 或经 CLI：</span>
+agentscope-admin<span class="w"> </span>seed<span class="w"> </span>--risk-ontology
+</code></pre></div>
+
+<blockquote>
+<p>重要：seed 是<strong>幂等</strong>的——重灌时会级联删除旧本体的全部子表（对象类型/实例/属性/动作/数据源/连接器），并自动把指向旧本体的智能体绑定重新指到新本体，避免出现「智能体绑在已删本体上、读到孤儿数据」的问题（见 commit <code>c0abf6c</code>）。</p>
+</blockquote>
+<h2 id="6">6. 前端本体管理页</h2>
+<p><code>apps/web-ele/src/views/agentscope/ontology/index.vue</code>：</p>
+<ul>
+<li>对象类型表显示所属<strong>数据源/数据表</strong>；展开行显示属性 ↔ 字段映射（如 交易 <code>amount→AMT</code>、<code>risk_score→RISK_SCORE</code>）。</li>
+<li>动作类型表的「写回操作」列（如 <code>aml_engine.flag</code>、<code>payments_core.freeze</code>；未绑定显示「仅本体内部」）。</li>
+<li>「数据源」「连接器」Tab 分别展示各自的列 / 操作定义。</li>
+<li>本体关系图（<code>GET /ontology/{id}/graph</code>）。</li>
+</ul>
+<div class="page-footer">
+  <span>AgentScope Admin · 静态 Wiki</span>
+  <span>← <a href="03-data-model.html">数据模型 Data Model</a> &nbsp;|&nbsp; <a href="05-agents.html">智能体与模型配置 Agents</a> →</span>
+</div>
+</main>
+</div>
+</body>
+</html>

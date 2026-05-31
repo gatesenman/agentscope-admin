@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>二次开发指南 Developer Guide · AgentScope Admin Wiki</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">AS</div>
+    <div>
+      <div class="title">AgentScope Admin</div>
+      <div class="subtitle">项目 Wiki（静态）</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="nav-group-label">入门</div>
+    <a href="01-overview.html">概览 Overview</a>
+    <a href="02-architecture.html">架构 Architecture</a>
+    <a href="03-data-model.html">数据模型 Data Model</a>
+    <div class="nav-group-label">核心能力</div>
+    <a href="04-ontology.html">本体与语义层 Ontology</a>
+    <a href="05-agents.html">智能体与模型配置 Agents</a>
+    <a href="06-workflow.html">工作流编排 Workflow</a>
+    <a href="07-knowledge.html">知识库与流水线 Knowledge</a>
+    <a href="08-orchestration.html">多智能体编排 Orchestration</a>
+    <a href="09-publish.html">发布与集成 Publishing</a>
+    <a href="10-platform-services.html">平台服务 Platform Services</a>
+    <div class="nav-group-label">参考</div>
+    <a href="11-api-reference.html">API 参考 API Reference</a>
+    <a href="12-developer-guide.html" class="active">二次开发指南 Developer Guide</a>
+    <a href="13-roadmap.html">路线图与缺口 Roadmap</a>
+    <a href="14-running.html">运行与开发 Running</a>
+  </nav>
+</aside>
+<main class="content">
+<h1 id="developer-guide">二次开发指南 / Developer Guide</h1>
+<p>面向「在本项目上继续开发（含 AI 续接）」的实操配方。更完整版本见仓库根的 <code>DEVELOPER.md</code>。</p>
+<h2 id="_1">约定</h2>
+<ul>
+<li>后端共享 SQLite 会话依赖：<code>from ..ontology.db import get_session</code>。</li>
+<li>调用方身份：通过 <code>X-User-ID</code> 头读取（见 <code>publish/router.py</code> 的 <code>_owner</code> 依赖），业务表以 <code>owner_user_id</code> 归属隔离。</li>
+<li>前端每个后端模块对应一个强类型客户端 <code>apps/web-ele/src/api/agentscope/&lt;module&gt;.ts</code>，并从 <code>index.ts</code> 再导出。</li>
+<li>流式接口统一走 SSE；前端用 <code>fetch</code> + <code>ReadableStream</code> 解析。</li>
+</ul>
+<h2 id="1">配方 1：新增一个工作流节点类型</h2>
+<p>以新增 <code>http</code> 节点（GET 一个 URL，输出 <code>{{&lt;id&gt;.text}}</code>）为例。</p>
+<p><strong>后端</strong>（<code>server/app/workflow/engine.py</code>）—— 第一步：在 <code>run()</code> 里新增分支：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">elif</span> <span class="n">ntype</span> <span class="o">==</span> <span class="s2">&quot;http&quot;</span><span class="p">:</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_run_http</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+
+<p>第二步：实现 runner（接收节点 <code>data</code>，返回写入 <code>self.context[nid]</code> 的 <code>output</code>）：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_run_http</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">requests</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="n">_resolve</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;url&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="p">)</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="n">resp</span><span class="o">.</span><span class="n">text</span><span class="p">,</span> <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="n">resp</span><span class="o">.</span><span class="n">status_code</span><span class="p">}</span>
+</code></pre></div>
+
+<p>若节点需向 UI 流式输出文本，参考 <code>_run_llm</code>：写成 async 生成器，yield <code>(frame, text)</code>，<code>frame</code> 为 <code>_event({"type":"text_delta","node_id":nid,"delta":...})</code>。</p>
+<p><strong>前端</strong>（<code>workflow/</code>）：① 在 <code>FlowNode.vue</code> 的 <code>META</code> 注册该 type 的颜色/图标/标签；② 在 <code>editor.vue</code> 的左侧节点面板与右侧配置面板加入它（小表单，绑定到 <code>node.data</code>）。</p>
+<blockquote>
+<p>节点配置是图里的自由 JSON，无需数据库迁移。</p>
+</blockquote>
+<h2 id="2">配方 2：新增一个后端接口 / 功能模块</h2>
+<p>新增功能域 <code>foo</code> 的步骤：</p>
+<ol>
+<li>建 <code>server/app/foo/{__init__.py,models.py,router.py}</code>。</li>
+<li><code>models.py</code> 定义 SQLModel 表（<code>class Foo(SQLModel, table=True)</code>）。</li>
+<li><code>router.py</code> 定义路由（见下方代码）。</li>
+<li>在 <code>server/app/main.py</code> 挂载：<code>from .foo.router import router as foo_router</code> 后 <code>app.include_router(foo_router)</code>。</li>
+<li><strong>确保建表</strong>：<code>server/app/ontology/db.py:init_db()</code> 要 import 到 <code>app.foo.models</code>（它统一 import 所有模型模块以补全 metadata）。</li>
+<li>加前端客户端 <code>apps/web-ele/src/api/agentscope/foo.ts</code> 并从 <code>index.ts</code> 再导出。</li>
+</ol>
+<p><code>router.py</code> 范式：</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">APIRouter</span><span class="p">,</span> <span class="n">Depends</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sqlmodel</span><span class="w"> </span><span class="kn">import</span> <span class="n">Session</span><span class="p">,</span> <span class="n">select</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..ontology.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_session</span>
+
+<span class="n">router</span> <span class="o">=</span> <span class="n">APIRouter</span><span class="p">(</span><span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;/admin/foos&quot;</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;foo&quot;</span><span class="p">])</span>
+
+<span class="nd">@router</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">list_foos</span><span class="p">(</span><span class="n">session</span><span class="p">:</span> <span class="n">Session</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_session</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">session</span><span class="o">.</span><span class="n">exec</span><span class="p">(</span><span class="n">select</span><span class="p">(</span><span class="n">Foo</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;items&quot;</span><span class="p">:</span> <span class="n">rows</span><span class="p">,</span> <span class="s2">&quot;total&quot;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">)}</span>
+</code></pre></div>
+
+<h2 id="3">配方 3：新增一个后台页面（前端）</h2>
+<ol>
+<li>建 <code>apps/web-ele/src/views/agentscope/foo/index.vue</code>。</li>
+<li>在 <code>src/router/routes/modules/agentscope.ts</code> 加路由 + 菜单项。</li>
+<li>在 <code>locales/langs/zh-CN/agentscope.json</code> 与 <code>en-US/agentscope.json</code> 同步 i18n key（标题用 <code>$t('agentscope.menu.foo')</code>）。</li>
+<li>用 <code>foo.ts</code> 客户端取数；复用 <code>SchemaForm.vue</code>、<code>StatusTag.vue</code> 与 Element Plus 的 <code>el-table</code>/<code>el-drawer</code>/<code>el-dialog</code>（参考 <code>views/agentscope/agents/index.vue</code> 范式）。</li>
+</ol>
+<h2 id="4">配方 4：知识库流水线与检索</h2>
+<p>知识库由「分块策略 × 索引方式」决定；<code>build_pipeline()</code>（<code>knowledge/pipeline.py</code>）据此派生阶段列表，前端 <code>buildPreview()</code> 镜像同一逻辑做实时预览。阶段：<code>extract → clean → split|split_parent_child → [embed|build_graph] → index</code>。</p>
+<ul>
+<li><code>keyword</code> → 仅 TF-IDF；<code>vector</code> → <code>embed</code>（hash 256 维 L2 向量，无外部依赖）；<code>knowledge_graph</code> → <code>build_graph</code>（<code>graph.py</code> 用 LLM 抽三元组，需 <code>kg_credential_id</code>/<code>kg_model</code>）；<code>hybrid</code> → graph + keyword 混合。</li>
+<li>召回测试 <code>POST /admin/knowledge-bases/{id}/retrieve</code> 按方式返回分数/父块上下文/三元组，可按查询覆盖方式。</li>
+</ul>
+<h2 id="5">配方 5：新增一个多智能体编排模式</h2>
+<p>在 <code>orchestration/engine.py</code> 为新 <code>pattern</code> 增加协调逻辑分支，并在 <code>GET /admin/orchestrations/patterns</code> 暴露元信息；前端编排页根据 pattern 渲染对应的成员/协调器配置。</p>
+<h2 id="cli">CLI</h2>
+<p><code>agentscope-admin</code>（<code>server/app/cli.py</code>）：<code>serve</code>（起服务）、<code>seed</code>（灌数据，含 <code>--risk-ontology</code>）、<code>agents</code>、<code>knowledge</code>、<code>workflow</code>、<code>publish</code>、<code>keys</code> 等子命令。详见 <a href="14-running.html">运行与开发</a>。</p>
+<h2 id="_2">本地开发回路</h2>
+<div class="codehilite"><pre><span></span><code>./start-dev.sh<span class="w">            </span><span class="c1"># 后端(:8000) + 前端(:5777)</span>
+./start-dev.sh<span class="w"> </span>--seed<span class="w">     </span><span class="c1"># 顺带灌入风控本体</span>
+<span class="nb">cd</span><span class="w"> </span>server<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>./start.sh<span class="w">   </span><span class="c1"># 仅后端</span>
+<span class="nb">cd</span><span class="w"> </span>server<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>./seed.sh<span class="w">    </span><span class="c1"># 仅灌数据</span>
+<span class="c1"># 校验：后端 ruff/格式化；前端 pnpm -F @vben/web-ele typecheck / lint</span>
+</code></pre></div>
+<div class="page-footer">
+  <span>AgentScope Admin · 静态 Wiki</span>
+  <span>← <a href="11-api-reference.html">API 参考 API Reference</a> &nbsp;|&nbsp; <a href="13-roadmap.html">路线图与缺口 Roadmap</a> →</span>
+</div>
+</main>
+</div>
+</body>
+</html>

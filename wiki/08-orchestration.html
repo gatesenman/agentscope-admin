@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>多智能体编排 Orchestration · AgentScope Admin Wiki</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">AS</div>
+    <div>
+      <div class="title">AgentScope Admin</div>
+      <div class="subtitle">项目 Wiki（静态）</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="nav-group-label">入门</div>
+    <a href="01-overview.html">概览 Overview</a>
+    <a href="02-architecture.html">架构 Architecture</a>
+    <a href="03-data-model.html">数据模型 Data Model</a>
+    <div class="nav-group-label">核心能力</div>
+    <a href="04-ontology.html">本体与语义层 Ontology</a>
+    <a href="05-agents.html">智能体与模型配置 Agents</a>
+    <a href="06-workflow.html">工作流编排 Workflow</a>
+    <a href="07-knowledge.html">知识库与流水线 Knowledge</a>
+    <a href="08-orchestration.html" class="active">多智能体编排 Orchestration</a>
+    <a href="09-publish.html">发布与集成 Publishing</a>
+    <a href="10-platform-services.html">平台服务 Platform Services</a>
+    <div class="nav-group-label">参考</div>
+    <a href="11-api-reference.html">API 参考 API Reference</a>
+    <a href="12-developer-guide.html">二次开发指南 Developer Guide</a>
+    <a href="13-roadmap.html">路线图与缺口 Roadmap</a>
+    <a href="14-running.html">运行与开发 Running</a>
+  </nav>
+</aside>
+<main class="content">
+<h1 id="multi-agent-orchestration">多智能体编排 / Multi-Agent Orchestration</h1>
+<p>把一组「成员」（agent persona，各带模型配置与指令）置于某种<strong>协作模式</strong>下协同。后端 <code>app/orchestration/engine.py</code>（SSE 引擎），前端 <code>apps/web-ele/src/views/agentscope/orchestration/index.vue</code>（实时协作面板）。</p>
+<ul>
+<li>模型：<code>Orchestration.pattern</code> + <code>config</code>（<code>members[]</code> / <code>coordinator</code> / <code>max_rounds</code>）。</li>
+<li>端点：<code>GET/POST /admin/orchestrations/</code>、<code>GET/PATCH/DELETE /admin/orchestrations/{id}</code>、<code>GET /admin/orchestrations/patterns</code>、<code>POST /admin/orchestrations/{id}/run</code>。</li>
+</ul>
+<h2 id="_1">六种行业标准模式</h2>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sequential</code></td>
+<td>流水线：每个成员在上一个输出上继续精炼。</td>
+</tr>
+<tr>
+<td><code>parallel</code></td>
+<td>扇出：同一任务并发分发给每个成员。</td>
+</tr>
+<tr>
+<td><code>aggregation</code></td>
+<td>并行扇出后，由一个聚合 LLM 综合所有成员输出为一个答案。</td>
+</tr>
+<tr>
+<td><code>router</code></td>
+<td>路由 LLM 选出最合适的单个成员来处理任务。</td>
+</tr>
+<tr>
+<td><code>supervisor</code></td>
+<td>主管 LLM 迭代地把子任务委派给工人成员，直到产出最终答案（主管-工人/编排者-工人）。</td>
+</tr>
+<tr>
+<td><code>handoff</code></td>
+<td>成员之间相互交接控制权（swarm），直到某成员标记完成或达到 <code>max_rounds</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_2">成员与协调器配置</h2>
+<ul>
+<li><strong>成员 member</strong>：<code>name</code> / <code>role</code> / <code>instruction</code> / <code>credential_id</code> / <code>type</code> / <code>model</code> / <code>parameters</code>。</li>
+<li><strong>协调器 coordinator</strong>（用于 aggregation / router / supervisor）：自己的凭证/模型/参数 + 调度指令。</li>
+<li><code>max_rounds</code>：handoff / supervisor 的最大轮数。</li>
+</ul>
+<h2 id="_3">运行</h2>
+<p><code>POST /admin/orchestrations/{id}/run</code> 返回 SSE：实时转写各成员输出，并在聚合/路由/主管模式下产出最终答案。前端协作面板按成员着色显示发言时间线。</p>
+<blockquote>
+<p>实测：并行模式下「研究员 + 撰写者」两成员经 DeepSeek 流式输出并聚合最终答案。</p>
+</blockquote>
+<div class="page-footer">
+  <span>AgentScope Admin · 静态 Wiki</span>
+  <span>← <a href="07-knowledge.html">知识库与流水线 Knowledge</a> &nbsp;|&nbsp; <a href="09-publish.html">发布与集成 Publishing</a> →</span>
+</div>
+</main>
+</div>
+</body>
+</html>

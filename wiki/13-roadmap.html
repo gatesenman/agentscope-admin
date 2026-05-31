@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>路线图与缺口 Roadmap · AgentScope Admin Wiki</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">AS</div>
+    <div>
+      <div class="title">AgentScope Admin</div>
+      <div class="subtitle">项目 Wiki（静态）</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="nav-group-label">入门</div>
+    <a href="01-overview.html">概览 Overview</a>
+    <a href="02-architecture.html">架构 Architecture</a>
+    <a href="03-data-model.html">数据模型 Data Model</a>
+    <div class="nav-group-label">核心能力</div>
+    <a href="04-ontology.html">本体与语义层 Ontology</a>
+    <a href="05-agents.html">智能体与模型配置 Agents</a>
+    <a href="06-workflow.html">工作流编排 Workflow</a>
+    <a href="07-knowledge.html">知识库与流水线 Knowledge</a>
+    <a href="08-orchestration.html">多智能体编排 Orchestration</a>
+    <a href="09-publish.html">发布与集成 Publishing</a>
+    <a href="10-platform-services.html">平台服务 Platform Services</a>
+    <div class="nav-group-label">参考</div>
+    <a href="11-api-reference.html">API 参考 API Reference</a>
+    <a href="12-developer-guide.html">二次开发指南 Developer Guide</a>
+    <a href="13-roadmap.html" class="active">路线图与缺口 Roadmap</a>
+    <a href="14-running.html">运行与开发 Running</a>
+  </nav>
+</aside>
+<main class="content">
+<h1 id="roadmap-gaps">路线图与缺口 / Roadmap &amp; Gaps</h1>
+<p>以「资深 AI 智能体研究员」视角，对照行业共识（Dify / Coze / LangGraph / Claude Agent SDK / OpenAI Assistants）、AgentScope 框架已支持但平台尚未配置化的能力，以及 B 端平台应有的工程/治理能力，给出已完成与待补清单。</p>
+<h2 id="_1">已完成（本平台已具备）</h2>
+<ul>
+<li>智能体生命周期、模型配置、权限模式（对齐 Claude SDK <code>permission_mode</code>）</li>
+<li>Palantir 风格本体 + 两组关键映射（属性↔列、动作↔连接器）</li>
+<li>工作流编排（Dify 全节点 + 本体节点）、知识库 + 流水线编排 + 召回测试</li>
+<li>多智能体编排（6 模式）、发布（Web App / REST / 嵌入 + API Key）</li>
+<li>MCP 服务器管理、人在环工具确认、可观测性 v1（用量/成本 + 执行链路 trace）、多租户/RBAC 骨架、定时任务</li>
+</ul>
+<h2 id="p0">P0（建议优先，性价比最高）</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>说明</th>
+<th>状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MCP 服务器管理</td>
+<td><code>/workspace/mcp</code> 配置化</td>
+<td>✅ 已完成</td>
+</tr>
+<tr>
+<td>人在环工具确认</td>
+<td>调试台识别 <code>REQUIRE_USER_CONFIRM</code> 并放行/拒绝</td>
+<td>✅ 已完成</td>
+</tr>
+<tr>
+<td>可观测性 v1</td>
+<td>用量/成本 + 会话级执行链路 trace</td>
+<td>✅ 已完成</td>
+</tr>
+<tr>
+<td>多租户/RBAC 骨架</td>
+<td>用户 + 角色 + owner 归属</td>
+<td>✅ 骨架完成</td>
+</tr>
+</tbody>
+</table>
+<h2 id="p1">P1（行业共识 / 框架已支持）</h2>
+<ul>
+<li>逐工具权限规则页（permission 引擎 ALLOW/DENY/ASK）</li>
+<li>工作区/沙箱（Docker/E2B，会话绑定 <code>workspace_id</code>）</li>
+<li>技能 Skills 页（<code>/workspace/skill</code>）、后台长任务监控（<code>/background-tasks</code>）</li>
+<li>限流/配额/成本上限、审计日志、评测/回归</li>
+<li>智能体版本管理与回滚、工作流变量体系（env/conversation/secret）</li>
+<li>Embedding 真实向量检索（现为 hash 向量 / TF-IDF）</li>
+</ul>
+<h2 id="p2">P2</h2>
+<ul>
+<li>护栏/内容安全、提示词库、自定义工具注册表、Webhook</li>
+<li>长期记忆、标注反馈、导入导出</li>
+<li>多模态输入、模型层 <code>max_retries</code>/高级参数、结构化输出 <code>summary_schema</code></li>
+</ul>
+<blockquote>
+<p>注：本页为规划性内容，描述方向与优先级；具体实现以仓库实际代码与提交为准。</p>
+</blockquote>
+<div class="page-footer">
+  <span>AgentScope Admin · 静态 Wiki</span>
+  <span>← <a href="12-developer-guide.html">二次开发指南 Developer Guide</a> &nbsp;|&nbsp; <a href="14-running.html">运行与开发 Running</a> →</span>
+</div>
+</main>
+</div>
+</body>
+</html>

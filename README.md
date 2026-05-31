@@ -105,6 +105,10 @@ Global flags: `--base-url` (env `AGENTSCOPE_ADMIN_BASE_URL`, default `http://loc
 
 For extending the platform (adding a workflow node, an API endpoint, a page, or a pipeline stage), see [DEVELOPER.md](DEVELOPER.md) — written to be AI-agent friendly for second-stage development.
 
+## Wiki (static, offline)
+
+A complete **static wiki site** (HTML + markdown) generated from the whole codebase lives in [`wiki/`](wiki/). It is fully offline — just open [`wiki/index.html`](wiki/index.html) in a browser, no server needed. It covers architecture, data model, ontology/semantic layer, agents, workflow, knowledge, orchestration, publishing, platform services, a full API reference (from the OpenAPI schema), a second-development guide, the roadmap and how to run things. Markdown sources are in `wiki/content/` and can be re-rendered with `python wiki/build_wiki.py` (needs `markdown` + `pygments`). See [wiki/README.md](wiki/README.md).
+
 ## Publishing
 
 Publishing freezes an agent into a public **App** (snapshotting its model, parameters, ontology binding and permission mode). Manage apps under **智能体平台 → 发布管理** (`/agentscope/publish`): publish/unpublish, toggle status, edit the public profile (name / icon / opening statement / suggested questions / allowed origins / rate limit), and manage API keys.

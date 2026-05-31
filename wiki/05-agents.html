@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>智能体与模型配置 Agents · AgentScope Admin Wiki</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">AS</div>
+    <div>
+      <div class="title">AgentScope Admin</div>
+      <div class="subtitle">项目 Wiki（静态）</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="nav-group-label">入门</div>
+    <a href="01-overview.html">概览 Overview</a>
+    <a href="02-architecture.html">架构 Architecture</a>
+    <a href="03-data-model.html">数据模型 Data Model</a>
+    <div class="nav-group-label">核心能力</div>
+    <a href="04-ontology.html">本体与语义层 Ontology</a>
+    <a href="05-agents.html" class="active">智能体与模型配置 Agents</a>
+    <a href="06-workflow.html">工作流编排 Workflow</a>
+    <a href="07-knowledge.html">知识库与流水线 Knowledge</a>
+    <a href="08-orchestration.html">多智能体编排 Orchestration</a>
+    <a href="09-publish.html">发布与集成 Publishing</a>
+    <a href="10-platform-services.html">平台服务 Platform Services</a>
+    <div class="nav-group-label">参考</div>
+    <a href="11-api-reference.html">API 参考 API Reference</a>
+    <a href="12-developer-guide.html">二次开发指南 Developer Guide</a>
+    <a href="13-roadmap.html">路线图与缺口 Roadmap</a>
+    <a href="14-running.html">运行与开发 Running</a>
+  </nav>
+</aside>
+<main class="content">
+<h1 id="agents-model-config">智能体与模型配置 / Agents &amp; Model Config</h1>
+<h2 id="_1">智能体生命周期</h2>
+<p>智能体本身由 AgentScope 的应用层管理，平台在其上提供 schema 驱动的表单（<code>GET /agent/schema</code> 返回 JSON Schema 片段，前端据此动态渲染身份 / 上下文 / ReAct 等配置）。</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>端点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>列表</td>
+<td><code>GET /agent/</code></td>
+</tr>
+<tr>
+<td>创建</td>
+<td><code>POST /agent/</code></td>
+</tr>
+<tr>
+<td>表单 schema</td>
+<td><code>GET /agent/schema</code></td>
+</tr>
+<tr>
+<td>更新</td>
+<td><code>PATCH /agent/{agent_id}</code></td>
+</tr>
+<tr>
+<td>删除</td>
+<td><code>DELETE /agent/{agent_id}</code></td>
+</tr>
+</tbody>
+</table>
+<p>前端页面：<code>apps/web-ele/src/views/agentscope/agents/index.vue</code>。</p>
+<h2 id="_2">模型配置（每个智能体一份档案）</h2>
+<p><code>AgentProfile</code>（<code>app/agent_profile/</code>）持久化每个智能体的运行配置，调试台创建会话时自动预填：</p>
+<ul>
+<li><strong>默认模型</strong>：<code>default_provider</code> / <code>default_credential_id</code> / <code>default_model</code></li>
+<li><strong>生成参数</strong>：<code>parameters</code>（temperature / top_p / max_tokens 等）</li>
+<li><strong>兜底模型</strong>：<code>fallback_provider</code> / <code>fallback_credential_id</code> / <code>fallback_model</code></li>
+<li><strong>流式</strong>：<code>stream</code></li>
+<li><strong>权限模式</strong> <code>permission_mode</code>：与 AgentScope <code>PermissionMode</code> 对齐——</li>
+<li><code>default</code>（默认按需确认）/ <code>accept_edits</code> / <code>explore</code> / <code>bypass</code>（沙箱全放行）/ <code>dont_ask</code></li>
+</ul>
+<p>端点：<code>GET/PUT/DELETE /admin/agent-profiles/{agent_id}</code>。</p>
+<h2 id="_3">凭证与模型</h2>
+<p>LLM 厂商凭证由 AgentScope 管理：</p>
+<ul>
+<li><code>GET /credential/</code>、<code>POST /credential/</code>、<code>PATCH/DELETE /credential/{id}</code></li>
+<li><code>GET /credential/schemas</code> 列出各凭证类型的 JSON schema</li>
+<li><code>GET /model/</code> 列出某凭证类型下的候选模型</li>
+</ul>
+<p>支持 OpenAI / DashScope / DeepSeek / Anthropic 等。默认演示使用 <strong>DeepSeek</strong>（兼容 OpenAI 接口）。</p>
+<h2 id="playground">调试台 Playground</h2>
+<p><code>apps/web-ele/src/views/agentscope/sessions/index.vue</code> + <code>POST /chat/</code>（SSE 流式）：</p>
+<ul>
+<li>实时渲染文本增量、<strong>工具调用</strong>与<strong>思考链（ReAct）</strong>。</li>
+<li><strong>人在环工具确认</strong>：识别 <code>REQUIRE_USER_CONFIRM</code> 事件，渲染待确认工具卡片，用户点「批准/拒绝」后按同一 <code>reply_id</code> 回传 <code>USER_CONFIRM_RESULT</code> 续跑（无需用 bypass 绕过权限）。</li>
+<li>自动预填该智能体保存的模型默认值与权限模式。</li>
+<li>会话管理：<code>GET/POST /sessions/</code>、<code>PATCH/DELETE /sessions/{id}</code>、<code>GET /sessions/{id}/messages</code>。</li>
+</ul>
+<h2 id="_4">智能体可用工具</h2>
+<p>创建会话时，后端的工具工厂会按需注入：</p>
+<ul>
+<li>若该智能体有 <code>AgentBinding</code>：注入本体工具（见 <a href="04-ontology.html#4-智能体如何语义查询-语义操作">本体</a>）。</li>
+<li><code>knowledge_search</code>：检索其拥有的知识库。</li>
+<li>已启用的 MCP 服务器暴露的工具。</li>
+<li>内置工具（如计算器、当前时间、HTTP GET 等，取决于配置）。</li>
+</ul>
+<div class="page-footer">
+  <span>AgentScope Admin · 静态 Wiki</span>
+  <span>← <a href="04-ontology.html">本体与语义层 Ontology</a> &nbsp;|&nbsp; <a href="06-workflow.html">工作流编排 Workflow</a> →</span>
+</div>
+</main>
+</div>
+</body>
+</html>

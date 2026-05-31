@@ -1,0 +1,1008 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API 参考 API Reference · AgentScope Admin Wiki</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">AS</div>
+    <div>
+      <div class="title">AgentScope Admin</div>
+      <div class="subtitle">项目 Wiki（静态）</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="nav-group-label">入门</div>
+    <a href="01-overview.html">概览 Overview</a>
+    <a href="02-architecture.html">架构 Architecture</a>
+    <a href="03-data-model.html">数据模型 Data Model</a>
+    <div class="nav-group-label">核心能力</div>
+    <a href="04-ontology.html">本体与语义层 Ontology</a>
+    <a href="05-agents.html">智能体与模型配置 Agents</a>
+    <a href="06-workflow.html">工作流编排 Workflow</a>
+    <a href="07-knowledge.html">知识库与流水线 Knowledge</a>
+    <a href="08-orchestration.html">多智能体编排 Orchestration</a>
+    <a href="09-publish.html">发布与集成 Publishing</a>
+    <a href="10-platform-services.html">平台服务 Platform Services</a>
+    <div class="nav-group-label">参考</div>
+    <a href="11-api-reference.html" class="active">API 参考 API Reference</a>
+    <a href="12-developer-guide.html">二次开发指南 Developer Guide</a>
+    <a href="13-roadmap.html">路线图与缺口 Roadmap</a>
+    <a href="14-running.html">运行与开发 Running</a>
+  </nav>
+</aside>
+<main class="content">
+<h1 id="api-api-reference">API 参考 / API Reference</h1>
+<blockquote>
+<p>由后端 OpenAPI 自动汇总。基址默认 <code>http://localhost:8000</code>。完整交互式文档见后端运行时的 <code>/docs</code>（Swagger）与 <code>/openapi.json</code>。</p>
+</blockquote>
+<h2 id="agents">智能体 Agents</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/agent/</code></td>
+<td>Create a new agent</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/agent/</code></td>
+<td>List all agents</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/agent/schema</code></td>
+<td>Get JSON Schema fragments for the agent form</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/agent/{agent_id}</code></td>
+<td>Update an agent</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/agent/{agent_id}</code></td>
+<td>Delete an agent</td>
+</tr>
+</tbody>
+</table>
+<h2 id="agent-profiles">智能体模型配置 Agent Profiles</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/agent-profiles/</code></td>
+<td>List Profiles</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/agent-profiles/{agent_id}</code></td>
+<td>Get Profile</td>
+</tr>
+<tr>
+<td><code>PUT</code></td>
+<td><code>/admin/agent-profiles/{agent_id}</code></td>
+<td>Upsert Profile</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/admin/agent-profiles/{agent_id}</code></td>
+<td>Delete Profile</td>
+</tr>
+</tbody>
+</table>
+<h2 id="vben">认证（兼容 vben 壳）</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/auth/codes</code></td>
+<td>Codes</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/auth/login</code></td>
+<td>Login</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/auth/logout</code></td>
+<td>Logout</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/auth/refresh</code></td>
+<td>Refresh</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/menu/all</code></td>
+<td>Menu All</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/user/info</code></td>
+<td>User Info</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">后台任务</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/background-tasks/{session_id}</code></td>
+<td>List running background tasks for a session</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/background-tasks/{session_id}/{task_id}</code></td>
+<td>Cancel a running background task</td>
+</tr>
+</tbody>
+</table>
+<h2 id="chat">对话 Chat</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/chat/</code></td>
+<td>Chat with an agent (streaming)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="credentials">凭证 Credentials</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/credential/</code></td>
+<td>Create a new credential</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/credential/</code></td>
+<td>List all credentials</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/credential/schemas</code></td>
+<td>List JSON schemas for all credential types</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/credential/{credential_id}</code></td>
+<td>Update a credential</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/credential/{credential_id}</code></td>
+<td>Delete a credential</td>
+</tr>
+</tbody>
+</table>
+<h2 id="dashboard">看板 Dashboard</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/dashboard/stats</code></td>
+<td>Get Stats</td>
+</tr>
+</tbody>
+</table>
+<h2 id="knowledge">知识库 Knowledge</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/knowledge-bases/</code></td>
+<td>Create Kb</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/knowledge-bases/</code></td>
+<td>List Kbs</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/knowledge-bases/{kb_id}</code></td>
+<td>Get Kb</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/admin/knowledge-bases/{kb_id}</code></td>
+<td>Update Kb</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/admin/knowledge-bases/{kb_id}</code></td>
+<td>Delete Kb</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/knowledge-bases/{kb_id}/chunks</code></td>
+<td>List Chunks</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/knowledge-bases/{kb_id}/documents</code></td>
+<td>Add Document</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/knowledge-bases/{kb_id}/documents</code></td>
+<td>List Documents</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/admin/knowledge-bases/{kb_id}/documents/{doc_id}</code></td>
+<td>Delete Document</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/knowledge-bases/{kb_id}/documents/{doc_id}/reindex</code></td>
+<td>Reindex Document</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/knowledge-bases/{kb_id}/reindex</code></td>
+<td>Reindex All</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/knowledge-bases/{kb_id}/retrieve</code></td>
+<td>Retrieve</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/knowledge-bases/{kb_id}/triples</code></td>
+<td>List Triples</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mcp">MCP 服务器</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/mcp-servers/</code></td>
+<td>Create Server</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/mcp-servers/</code></td>
+<td>List Servers</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/mcp-servers/enabled/payloads</code></td>
+<td>Enabled Payloads</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/mcp-servers/{server_id}</code></td>
+<td>Get Server</td>
+</tr>
+<tr>
+<td><code>PUT</code></td>
+<td><code>/admin/mcp-servers/{server_id}</code></td>
+<td>Update Server</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/admin/mcp-servers/{server_id}</code></td>
+<td>Delete Server</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/mcp-servers/{server_id}/test</code></td>
+<td>Test Server</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_2">元信息</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/health</code></td>
+<td>Health</td>
+</tr>
+</tbody>
+</table>
+<h2 id="models">模型 Models</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/model/</code></td>
+<td>List all candidate models under the given credential type</td>
+</tr>
+</tbody>
+</table>
+<h2 id="observability">可观测性 Observability</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/trace/agents</code></td>
+<td>Per-agent session/run/token aggregation</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/trace/analytics</code></td>
+<td>Aggregate analytics for the dashboard</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/trace/runs</code></td>
+<td>Ingest a run's execution-chain spans</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/trace/sessions</code></td>
+<td>Sessions for an agent with run aggregates</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/trace/sessions/{session_id}</code></td>
+<td>Full execution chain for a session</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/usage/</code></td>
+<td>Record a model-call usage event</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/usage/recent</code></td>
+<td>Recent model-call usage rows</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/usage/summary</code></td>
+<td>Aggregated token usage and estimated cost</td>
+</tr>
+</tbody>
+</table>
+<h2 id="ontology">本体 Ontology</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/ontology/</code></td>
+<td>Create Ontology</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/ontology/</code></td>
+<td>List Ontologies</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/ontology/bindings/all</code></td>
+<td>List Bindings</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/ontology/bindings/{agent_id}</code></td>
+<td>Get Binding</td>
+</tr>
+<tr>
+<td><code>PUT</code></td>
+<td><code>/ontology/bindings/{agent_id}</code></td>
+<td>Upsert Binding</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/ontology/bindings/{agent_id}</code></td>
+<td>Delete Binding</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/ontology/{ontology_id}</code></td>
+<td>Get Ontology</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/ontology/{ontology_id}</code></td>
+<td>Update Ontology</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/ontology/{ontology_id}</code></td>
+<td>Delete Ontology</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/ontology/{ontology_id}/action-types</code></td>
+<td>Create Action Type</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/ontology/{ontology_id}/action-types</code></td>
+<td>List Action Types</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/ontology/{ontology_id}/action-types/{action_type_id}</code></td>
+<td>Update Action Type</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/ontology/{ontology_id}/action-types/{action_type_id}</code></td>
+<td>Delete Action Type</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/ontology/{ontology_id}/actions/execute</code></td>
+<td>Run Action</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/ontology/{ontology_id}/connectors</code></td>
+<td>Create Connector</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/ontology/{ontology_id}/connectors</code></td>
+<td>List Connectors</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/ontology/{ontology_id}/connectors/{connector_id}</code></td>
+<td>Update Connector</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/ontology/{ontology_id}/connectors/{connector_id}</code></td>
+<td>Delete Connector</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/ontology/{ontology_id}/datasources</code></td>
+<td>Create Datasource</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/ontology/{ontology_id}/datasources</code></td>
+<td>List Datasources</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/ontology/{ontology_id}/datasources/{datasource_id}</code></td>
+<td>Update Datasource</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/ontology/{ontology_id}/datasources/{datasource_id}</code></td>
+<td>Delete Datasource</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/ontology/{ontology_id}/graph</code></td>
+<td>Get Graph</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/ontology/{ontology_id}/link-types</code></td>
+<td>Create Link Type</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/ontology/{ontology_id}/link-types</code></td>
+<td>List Link Types</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/ontology/{ontology_id}/link-types/{link_type_id}</code></td>
+<td>Update Link Type</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/ontology/{ontology_id}/link-types/{link_type_id}</code></td>
+<td>Delete Link Type</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/ontology/{ontology_id}/links</code></td>
+<td>Create Link</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/ontology/{ontology_id}/object-types</code></td>
+<td>Create Object Type</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/ontology/{ontology_id}/object-types</code></td>
+<td>List Object Types</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/ontology/{ontology_id}/object-types/{object_type_id}</code></td>
+<td>Update Object Type</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/ontology/{ontology_id}/object-types/{object_type_id}</code></td>
+<td>Delete Object Type</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/ontology/{ontology_id}/object-types/{object_type_id}/objects</code></td>
+<td>Create Object</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/ontology/{ontology_id}/object-types/{object_type_id}/objects</code></td>
+<td>List Objects</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/ontology/{ontology_id}/object-types/{object_type_id}/objects/{object_id}</code></td>
+<td>Update Object</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/ontology/{ontology_id}/object-types/{object_type_id}/objects/{object_id}</code></td>
+<td>Delete Object</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/ontology/{ontology_id}/query</code></td>
+<td>Run Query</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/ontology/{ontology_id}/traverse</code></td>
+<td>Run Traverse</td>
+</tr>
+</tbody>
+</table>
+<h2 id="orchestration">多智能体编排 Orchestration</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/orchestrations/</code></td>
+<td>Create Orchestration</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/orchestrations/</code></td>
+<td>List Orchestrations</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/orchestrations/patterns</code></td>
+<td>List Patterns</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/orchestrations/{orchestration_id}</code></td>
+<td>Get Orchestration</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/admin/orchestrations/{orchestration_id}</code></td>
+<td>Update Orchestration</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/admin/orchestrations/{orchestration_id}</code></td>
+<td>Delete Orchestration</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/orchestrations/{orchestration_id}/run</code></td>
+<td>Run Orchestration</td>
+</tr>
+</tbody>
+</table>
+<h2 id="preferences">用户偏好 Preferences</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/preferences/</code></td>
+<td>Get Preferences</td>
+</tr>
+<tr>
+<td><code>PUT</code></td>
+<td><code>/preferences/</code></td>
+<td>Put Preferences</td>
+</tr>
+</tbody>
+</table>
+<h2 id="publish">发布 Publish</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/published-apps/</code></td>
+<td>Publish App</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/published-apps/</code></td>
+<td>List Apps</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/published-apps/{app_id}</code></td>
+<td>Get App</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/admin/published-apps/{app_id}</code></td>
+<td>Update App</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/admin/published-apps/{app_id}</code></td>
+<td>Delete App</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/published-apps/{app_id}/keys</code></td>
+<td>Create Key</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/published-apps/{app_id}/keys</code></td>
+<td>List Keys</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/published-apps/{app_id}/keys/{key_id}/revoke</code></td>
+<td>Revoke Key</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/public/apps/{token}</code></td>
+<td>Public App Meta</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/public/apps/{token}/chat</code></td>
+<td>Public App Chat</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/static/embed.js</code></td>
+<td>Embed Script</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/v1/apps/{token}/chat-messages</code></td>
+<td>Api Chat Messages</td>
+</tr>
+</tbody>
+</table>
+<h2 id="rbac">多租户/RBAC</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/rbac/me</code></td>
+<td>Resolve the current caller's identity and role</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/rbac/roles</code></td>
+<td>List the role catalog</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/rbac/users</code></td>
+<td>Create a console member</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/rbac/users</code></td>
+<td>List console members</td>
+</tr>
+<tr>
+<td><code>PUT</code></td>
+<td><code>/admin/rbac/users/{user_id}</code></td>
+<td>Update a console member</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/admin/rbac/users/{user_id}</code></td>
+<td>Delete a console member</td>
+</tr>
+</tbody>
+</table>
+<h2 id="schedule">定时任务 Schedule</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/schedule/</code></td>
+<td>Create a new schedule</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/schedule/</code></td>
+<td>List all schedules</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/schedule/{schedule_id}</code></td>
+<td>Update a schedule</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/schedule/{schedule_id}</code></td>
+<td>Delete a schedule</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/schedule/{schedule_id}/sessions</code></td>
+<td>List execution sessions for a schedule</td>
+</tr>
+</tbody>
+</table>
+<h2 id="sessions">会话 Sessions</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/sessions/</code></td>
+<td>Create a new session</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/sessions/</code></td>
+<td>List sessions for an agent</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/sessions/{session_id}</code></td>
+<td>Update a session</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/sessions/{session_id}</code></td>
+<td>Delete a session</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/sessions/{session_id}/messages</code></td>
+<td>List messages for a session</td>
+</tr>
+</tbody>
+</table>
+<h2 id="workflow">工作流 Workflow</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/workflows/</code></td>
+<td>Create Workflow</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/workflows/</code></td>
+<td>List Workflows</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/admin/workflows/{workflow_id}</code></td>
+<td>Get Workflow</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/admin/workflows/{workflow_id}</code></td>
+<td>Update Workflow</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/admin/workflows/{workflow_id}</code></td>
+<td>Delete Workflow</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/admin/workflows/{workflow_id}/run</code></td>
+<td>Run Workflow</td>
+</tr>
+</tbody>
+</table>
+<h2 id="workspace">工作区 Workspace</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/workspace/mcp</code></td>
+<td>Add Mcp</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/workspace/mcp</code></td>
+<td>List Mcps</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/workspace/mcp/{mcp_name}</code></td>
+<td>Remove Mcp</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/workspace/skill</code></td>
+<td>Add Skill</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/workspace/skill</code></td>
+<td>List Skills</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/workspace/skill/{skill_name}</code></td>
+<td>Remove Skill</td>
+</tr>
+</tbody>
+</table>
+<div class="page-footer">
+  <span>AgentScope Admin · 静态 Wiki</span>
+  <span>← <a href="10-platform-services.html">平台服务 Platform Services</a> &nbsp;|&nbsp; <a href="12-developer-guide.html">二次开发指南 Developer Guide</a> →</span>
+</div>
+</main>
+</div>
+</body>
+</html>

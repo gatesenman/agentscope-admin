@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知识库与流水线 Knowledge · AgentScope Admin Wiki</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">AS</div>
+    <div>
+      <div class="title">AgentScope Admin</div>
+      <div class="subtitle">项目 Wiki（静态）</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="nav-group-label">入门</div>
+    <a href="01-overview.html">概览 Overview</a>
+    <a href="02-architecture.html">架构 Architecture</a>
+    <a href="03-data-model.html">数据模型 Data Model</a>
+    <div class="nav-group-label">核心能力</div>
+    <a href="04-ontology.html">本体与语义层 Ontology</a>
+    <a href="05-agents.html">智能体与模型配置 Agents</a>
+    <a href="06-workflow.html">工作流编排 Workflow</a>
+    <a href="07-knowledge.html" class="active">知识库与流水线 Knowledge</a>
+    <a href="08-orchestration.html">多智能体编排 Orchestration</a>
+    <a href="09-publish.html">发布与集成 Publishing</a>
+    <a href="10-platform-services.html">平台服务 Platform Services</a>
+    <div class="nav-group-label">参考</div>
+    <a href="11-api-reference.html">API 参考 API Reference</a>
+    <a href="12-developer-guide.html">二次开发指南 Developer Guide</a>
+    <a href="13-roadmap.html">路线图与缺口 Roadmap</a>
+    <a href="14-running.html">运行与开发 Running</a>
+  </nav>
+</aside>
+<main class="content">
+<h1 id="knowledge-pipeline">知识库与流水线编排 / Knowledge &amp; Pipeline</h1>
+<p>知识库支持按行业标准选择<strong>制作方式</strong>，并提供可视化的<strong>流水线编排</strong>与<strong>召回测试</strong>。后端在 <code>app/knowledge/</code>（<code>service.py</code> 摄取、<code>pipeline.py</code> 流水线、<code>graph.py</code> 知识图谱、<code>tools.py</code> 智能体工具）。</p>
+<ul>
+<li>端点前缀：<code>/admin/knowledge-bases</code></li>
+<li>前端：<code>apps/web-ele/src/views/agentscope/knowledge/{index,pipeline,PipelineNode}.vue</code></li>
+</ul>
+<h2 id="_1">制作方式：分块策略 × 索引方式</h2>
+<p>创建知识库时二维选择：</p>
+<p><strong>分块策略 <code>chunk_strategy</code></strong>
+- <code>general</code>：通用分块（chunk_size / overlap / separator）
+- <code>parent_child</code>：父子分块（大父块给上下文、小子块用于检索）</p>
+<p><strong>索引方式 <code>index_method</code></strong>
+- <code>keyword</code>：关键词（TF-IDF 词频）
+- <code>vector</code>：向量嵌入（embedding）
+- <code>knowledge_graph</code>：语义知识图谱（用 LLM 抽取实体/关系三元组，GraphRAG 风格）
+- <code>hybrid</code>：混合（关键词 + 向量）</p>
+<blockquote>
+<p>选择知识图谱方式时，会出现抽取用的凭证/模型字段（<code>kg_credential_id</code> / <code>kg_model</code>）。</p>
+</blockquote>
+<h2 id="pipeline">流水线（Pipeline）</h2>
+<p><code>build_pipeline(chunk_strategy, index_method)</code> 根据上面两维派生出阶段列表，前端按这个列表渲染可视化链路；摄取（<code>service.ingest_document</code>）严格按同一列表执行，做到「所见即所跑」：</p>
+<div class="codehilite"><pre><span></span><code>提取文本 → 清洗 → [通用分块 | 父子分块] → (向量嵌入?) → (语义知识图谱?) → 建立索引
+</code></pre></div>
+
+<ul>
+<li>向量 / 混合方式追加「向量嵌入」阶段。</li>
+<li>知识图谱方式追加「语义知识图谱（抽三元组）」阶段。</li>
+</ul>
+<p>每个知识库可在管理抽屉打开「流水线编排」（Vue Flow 节点链：数据源 → 提取 → 清洗 → 分块/父子 → QA → 嵌入/建图 → 索引），保存即重建索引。</p>
+<h2 id="_2">召回测试</h2>
+<p><code>POST /admin/knowledge-bases/{kb_id}/retrieve</code>：按当前方式返回命中片段、分数、父块上下文（父子分块）、三元组（知识图谱）。前端「召回测试」面板可切换方式查看效果。</p>
+<h2 id="_3">文档与重建索引</h2>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>端点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>列文档 / 加文档</td>
+<td><code>GET/POST /admin/knowledge-bases/{kb_id}/documents</code></td>
+</tr>
+<tr>
+<td>删文档</td>
+<td><code>DELETE .../documents/{doc_id}</code></td>
+</tr>
+<tr>
+<td>重建单文档</td>
+<td><code>POST .../documents/{doc_id}/reindex</code></td>
+</tr>
+<tr>
+<td>重建全部</td>
+<td><code>POST /admin/knowledge-bases/{kb_id}/reindex</code></td>
+</tr>
+<tr>
+<td>列分块 / 三元组</td>
+<td><code>GET .../chunks</code>、<code>GET .../triples</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="_4">作为智能体工具与工作流节点复用</h2>
+<p>同一套检索能力以三种方式复用：</p>
+<ol>
+<li>智能体工具 <code>knowledge_search</code>（按 owner 限定可见知识库）。</li>
+<li>工作流 <code>knowledge</code> 节点（知识检索）/ <code>knowledge-index</code> 节点（知识写入）。</li>
+<li>知识库页面的召回测试面板。</li>
+</ol>
+<div class="page-footer">
+  <span>AgentScope Admin · 静态 Wiki</span>
+  <span>← <a href="06-workflow.html">工作流编排 Workflow</a> &nbsp;|&nbsp; <a href="08-orchestration.html">多智能体编排 Orchestration</a> →</span>
+</div>
+</main>
+</div>
+</body>
+</html>

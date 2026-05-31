@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>平台服务 Platform Services · AgentScope Admin Wiki</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">AS</div>
+    <div>
+      <div class="title">AgentScope Admin</div>
+      <div class="subtitle">项目 Wiki（静态）</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="nav-group-label">入门</div>
+    <a href="01-overview.html">概览 Overview</a>
+    <a href="02-architecture.html">架构 Architecture</a>
+    <a href="03-data-model.html">数据模型 Data Model</a>
+    <div class="nav-group-label">核心能力</div>
+    <a href="04-ontology.html">本体与语义层 Ontology</a>
+    <a href="05-agents.html">智能体与模型配置 Agents</a>
+    <a href="06-workflow.html">工作流编排 Workflow</a>
+    <a href="07-knowledge.html">知识库与流水线 Knowledge</a>
+    <a href="08-orchestration.html">多智能体编排 Orchestration</a>
+    <a href="09-publish.html">发布与集成 Publishing</a>
+    <a href="10-platform-services.html" class="active">平台服务 Platform Services</a>
+    <div class="nav-group-label">参考</div>
+    <a href="11-api-reference.html">API 参考 API Reference</a>
+    <a href="12-developer-guide.html">二次开发指南 Developer Guide</a>
+    <a href="13-roadmap.html">路线图与缺口 Roadmap</a>
+    <a href="14-running.html">运行与开发 Running</a>
+  </nav>
+</aside>
+<main class="content">
+<h1 id="platform-services">平台服务 / Platform Services</h1>
+<p>汇总其余横向能力模块：MCP、可观测性、RBAC、定时任务、看板。</p>
+<h2 id="mcp-appmcp_registry">MCP 服务器（<code>app/mcp_registry/</code>）</h2>
+<p>持久化的 MCP 服务器注册表，会话创建时自动挂载已启用的服务器。</p>
+<ul>
+<li>transport：<code>stdio</code>（command/args/env）或 <code>http</code>（url/headers）。</li>
+<li>工具开关：<code>enable_tools</code> / <code>disable_tools</code>（allow/deny）。</li>
+<li>一键 <code>test</code>：用真实 MCPClient 连接 + 工具发现，回写 <code>last_status</code>（healthy/unhealthy）。</li>
+<li>端点：<code>GET/POST /admin/mcp-servers/</code>、<code>GET/PUT/DELETE /admin/mcp-servers/{id}</code>、<code>POST /admin/mcp-servers/{id}/test</code>、<code>GET /admin/mcp-servers/enabled/payloads</code>。</li>
+<li>前端：<code>mcp/index.vue</code>。</li>
+</ul>
+<h2 id="appobservability">可观测性（<code>app/observability/</code>）</h2>
+<p>两类数据：</p>
+<p><strong>用量 UsageLog</strong> — 从 <code>MODEL_CALL_END</code> 采集 token：
+- <code>POST /admin/usage/</code>（记录）、<code>GET /admin/usage/summary</code>（汇总+预估成本）、<code>GET /admin/usage/recent</code>（明细）。</p>
+<p><strong>执行链路 TraceSpan</strong> — 一次 run 由多个有序 span 组成（model/tool/ontology/answer/confirm）：
+- <code>POST /admin/trace/runs</code>（写入）、<code>GET /admin/trace/analytics</code>（看板：成功率/时延 P95/P99/Token 趋势/Top 工具）、<code>GET /admin/trace/agents</code>（按智能体聚合）、<code>GET /admin/trace/sessions</code>（某智能体的会话）、<code>GET /admin/trace/sessions/{session_id}</code>（单会话完整链路）。</p>
+<p>前端 <code>observability/index.vue</code> + <code>TraceTimeline.vue</code> 支持 <strong>智能体 → 会话 → run → span</strong> 三级下钻，span 按类型着色，输入/输出可展开看完整 JSON。</p>
+<blockquote>
+<p>实测一次会话完整链路：<code>查询对象类型→模型→查询交易→模型→回复</code>，100% 成功 / 3.81s / 15,634 token / $0.0046，全部正确渲染。</p>
+</blockquote>
+<h2 id="rbacapprbac">多租户 / RBAC（<code>app/rbac/</code>）</h2>
+<ul>
+<li><code>User</code> 表 + 角色目录（<code>admin</code> / <code>editor</code> / <code>viewer</code>，各带权限码）。</li>
+<li>端点：<code>GET /admin/rbac/me</code>、<code>GET /admin/rbac/roles</code>、<code>GET/POST /admin/rbac/users</code>、<code>PUT/DELETE /admin/rbac/users/{user_id}</code>。</li>
+<li>默认 <code>admin</code> 自动创建且禁止删除；各业务表用 <code>owner_user_id</code> 做归属隔离；调用方身份通过 <code>X-User-ID</code> 头传入。</li>
+<li>前端：<code>users/index.vue</code>。</li>
+</ul>
+<h2 id="agentscope-schedule">定时任务（AgentScope <code>/schedule</code>）</h2>
+<ul>
+<li>cron 调度：<code>GET/POST /schedule/</code>、<code>PATCH/DELETE /schedule/{id}</code>、<code>GET /schedule/{id}/sessions</code>。</li>
+<li>创建时从智能体「模型配置」预填凭证/模型/权限模式。</li>
+<li>前端：<code>schedules/index.vue</code>。</li>
+</ul>
+<h2 id="appdashboard">看板（<code>app/dashboard/</code>）</h2>
+<ul>
+<li><code>GET /dashboard/stats</code>：跨智能体 / 凭证 / 会话 / 本体（对象类型/实例/动作/关系数）的聚合统计。</li>
+<li>前端：<code>dashboard/index.vue</code>。</li>
+</ul>
+<h2 id="agentscope-workspace">工作区（AgentScope <code>/workspace</code>）</h2>
+<ul>
+<li>MCP：<code>GET/POST/DELETE /workspace/mcp</code></li>
+<li>技能 Skills：<code>GET/POST/DELETE /workspace/skill</code></li>
+<li>后台长任务：<code>GET /background-tasks/{session_id}</code>、<code>DELETE /background-tasks/{session_id}/{task_id}</code></li>
+</ul>
+<div class="page-footer">
+  <span>AgentScope Admin · 静态 Wiki</span>
+  <span>← <a href="09-publish.html">发布与集成 Publishing</a> &nbsp;|&nbsp; <a href="11-api-reference.html">API 参考 API Reference</a> →</span>
+</div>
+</main>
+</div>
+</body>
+</html>

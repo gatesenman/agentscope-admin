@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>运行与开发 Running · AgentScope Admin Wiki</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">AS</div>
+    <div>
+      <div class="title">AgentScope Admin</div>
+      <div class="subtitle">项目 Wiki（静态）</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="nav-group-label">入门</div>
+    <a href="01-overview.html">概览 Overview</a>
+    <a href="02-architecture.html">架构 Architecture</a>
+    <a href="03-data-model.html">数据模型 Data Model</a>
+    <div class="nav-group-label">核心能力</div>
+    <a href="04-ontology.html">本体与语义层 Ontology</a>
+    <a href="05-agents.html">智能体与模型配置 Agents</a>
+    <a href="06-workflow.html">工作流编排 Workflow</a>
+    <a href="07-knowledge.html">知识库与流水线 Knowledge</a>
+    <a href="08-orchestration.html">多智能体编排 Orchestration</a>
+    <a href="09-publish.html">发布与集成 Publishing</a>
+    <a href="10-platform-services.html">平台服务 Platform Services</a>
+    <div class="nav-group-label">参考</div>
+    <a href="11-api-reference.html">API 参考 API Reference</a>
+    <a href="12-developer-guide.html">二次开发指南 Developer Guide</a>
+    <a href="13-roadmap.html">路线图与缺口 Roadmap</a>
+    <a href="14-running.html" class="active">运行与开发 Running</a>
+  </nav>
+</aside>
+<main class="content">
+<h1 id="running-development">运行与开发 / Running &amp; Development</h1>
+<h2 id="_1">前置依赖</h2>
+<ul>
+<li>Node.js <code>v22.22.0</code>，pnpm <code>11.2.2</code></li>
+<li>Python <code>3.12</code></li>
+<li>本地 Redis 监听 <code>:6379</code></li>
+</ul>
+<h2 id="_2">一键启动</h2>
+<div class="codehilite"><pre><span></span><code>./start-dev.sh<span class="w">           </span><span class="c1"># 后端(:8000) + 前端(:5777)</span>
+./start-dev.sh<span class="w"> </span>--seed<span class="w">    </span><span class="c1"># 先灌入演示数据（本体 + 知识库 + RAG 工作流），再启动</span>
+</code></pre></div>
+
+<p>脚本会：首次运行时创建 Python venv 并安装前后端依赖、检查 Redis、拉起两个服务，Ctrl-C 时一并关闭。</p>
+<h2 id="_3">后端（手动）</h2>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>server
+./start.sh<span class="w">               </span><span class="c1"># venv + 依赖 + 检查 Redis + uvicorn(reload)</span>
+<span class="c1"># 或完全手动：</span>
+python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>.venv/bin/activate
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+uvicorn<span class="w"> </span>app.main:app<span class="w"> </span>--host<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span>--port<span class="w"> </span><span class="m">8000</span>
+</code></pre></div>
+
+<p>服务地址 <code>http://localhost:8000</code>（<code>/health</code>、<code>/docs</code>、<code>/openapi.json</code>）。灌演示本体：<code>cd server &amp;&amp; ./seed.sh</code>。</p>
+<h2 id="_4">前端（手动）</h2>
+<div class="codehilite"><pre><span></span><code>pnpm<span class="w"> </span>install
+pnpm<span class="w"> </span>dev:ele<span class="w">             </span><span class="c1"># 开发服务 http://localhost:5777</span>
+</code></pre></div>
+
+<p>开发服务把 <code>/api</code> 代理到 <code>http://localhost:8000</code>（见 <code>apps/web-ele/vite.config.ts</code>）。</p>
+<h2 id="_5">构建 / 校验</h2>
+<div class="codehilite"><pre><span></span><code>pnpm<span class="w"> </span>build:ele
+pnpm<span class="w"> </span>typecheck
+pnpm<span class="w"> </span>lint
+</code></pre></div>
+
+<h2 id="cli">CLI</h2>
+<p><code>agentscope-admin</code> 在终端操作平台。源码 checkout 下可直接 <code>./server/agentscope-admin …</code>，或 <code>cd server &amp;&amp; pip install -e .</code> 安装控制台脚本。</p>
+<div class="codehilite"><pre><span></span><code>agentscope-admin<span class="w"> </span>serve<span class="w"> </span>--reload<span class="w">                      </span><span class="c1"># 启动后端</span>
+agentscope-admin<span class="w"> </span>seed<span class="w">                                </span><span class="c1"># 演示本体 + 知识库 + 工作流</span>
+agentscope-admin<span class="w"> </span>agents<span class="w"> </span>list
+agentscope-admin<span class="w"> </span>knowledge<span class="w"> </span>retrieve<span class="w"> </span>&lt;kb_id&gt;<span class="w"> </span><span class="s2">&quot;可疑交易上报阈值&quot;</span>
+agentscope-admin<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>&lt;workflow_id&gt;<span class="w"> </span>--input<span class="w"> </span><span class="nv">query</span><span class="o">=</span><span class="s2">&quot;电汇要上报吗&quot;</span>
+agentscope-admin<span class="w"> </span>publish<span class="w"> </span>list
+agentscope-admin<span class="w"> </span>keys<span class="w"> </span>create<span class="w"> </span>&lt;app_id&gt;<span class="w"> </span>--name<span class="w"> </span>ci-key
+</code></pre></div>
+
+<p>全局参数：<code>--base-url</code>（env <code>AGENTSCOPE_ADMIN_BASE_URL</code>，默认 <code>http://localhost:8000</code>）、<code>--user</code>（env <code>AGENTSCOPE_ADMIN_USER</code>，默认 <code>admin</code>）、<code>--json</code>。管理类命令需要后端<strong>已在运行</strong>。</p>
+<h2 id="llm">配置 LLM 凭证</h2>
+<p>平台默认演示对接 <strong>DeepSeek</strong>（兼容 OpenAI 接口）。在「凭证」页或通过 <code>POST /credential/</code> 添加你的厂商 Key 后，在智能体「模型配置」里选择默认模型即可。</p>
+<blockquote>
+<p>仓库与本包内<strong>不含</strong>任何真实 API Key（已校验）；前端 <code>.env</code> 中的 <code>VITE_APP_STORE_SECURE_KEY</code> 仅为占位符，请替换为你自己的值。</p>
+</blockquote>
+<h2 id="wiki">本 wiki 的再生成</h2>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>server<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>markdown<span class="w"> </span>pygments
+python<span class="w"> </span>../wiki/build_wiki.py<span class="w">        </span><span class="c1"># 重新由 wiki/content/*.md 渲染出静态 HTML</span>
+</code></pre></div>
+<div class="page-footer">
+  <span>AgentScope Admin · 静态 Wiki</span>
+  <span>← <a href="13-roadmap.html">路线图与缺口 Roadmap</a></span>
+</div>
+</main>
+</div>
+</body>
+</html>

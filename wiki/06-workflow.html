@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工作流编排 Workflow · AgentScope Admin Wiki</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">AS</div>
+    <div>
+      <div class="title">AgentScope Admin</div>
+      <div class="subtitle">项目 Wiki（静态）</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="nav-group-label">入门</div>
+    <a href="01-overview.html">概览 Overview</a>
+    <a href="02-architecture.html">架构 Architecture</a>
+    <a href="03-data-model.html">数据模型 Data Model</a>
+    <div class="nav-group-label">核心能力</div>
+    <a href="04-ontology.html">本体与语义层 Ontology</a>
+    <a href="05-agents.html">智能体与模型配置 Agents</a>
+    <a href="06-workflow.html" class="active">工作流编排 Workflow</a>
+    <a href="07-knowledge.html">知识库与流水线 Knowledge</a>
+    <a href="08-orchestration.html">多智能体编排 Orchestration</a>
+    <a href="09-publish.html">发布与集成 Publishing</a>
+    <a href="10-platform-services.html">平台服务 Platform Services</a>
+    <div class="nav-group-label">参考</div>
+    <a href="11-api-reference.html">API 参考 API Reference</a>
+    <a href="12-developer-guide.html">二次开发指南 Developer Guide</a>
+    <a href="13-roadmap.html">路线图与缺口 Roadmap</a>
+    <a href="14-running.html">运行与开发 Running</a>
+  </nav>
+</aside>
+<main class="content">
+<h1 id="workflow">工作流编排 / Workflow</h1>
+<p>Dify 风格的可视化 DAG 工作流：前端用 Vue Flow 画布编辑节点/连线，后端 <code>app/workflow/engine.py</code> 做拓扑排序并按 SSE 流式逐节点执行。</p>
+<ul>
+<li>模型：<code>Workflow.graph</code>（<code>{nodes:[...], edges:[...]}</code>）。</li>
+<li>端点：<code>GET/POST /admin/workflows/</code>、<code>GET/PATCH/DELETE /admin/workflows/{id}</code>、<code>POST /admin/workflows/{id}/run</code>。</li>
+<li>前端：<code>apps/web-ele/src/views/agentscope/workflow/{index,editor,FlowNode}.vue</code>。</li>
+</ul>
+<h2 id="dify">节点目录（覆盖 Dify 全节点 + 本体节点）</h2>
+<table>
+<thead>
+<tr>
+<th>分类</th>
+<th>节点</th>
+<th>type</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入/触发</td>
+<td>Webhook 触发</td>
+<td><code>trigger-webhook</code></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>定时触发</td>
+<td><code>trigger-schedule</code></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>开始</td>
+<td><code>start</code></td>
+<td>定义输入变量</td>
+</tr>
+<tr>
+<td>AI</td>
+<td>LLM</td>
+<td><code>llm</code></td>
+<td>调用大模型，支持系统/用户提示词与模型参数</td>
+</tr>
+<tr>
+<td></td>
+<td>智能体</td>
+<td><code>agent</code></td>
+<td>调用一个已配置的智能体</td>
+</tr>
+<tr>
+<td></td>
+<td>问题分类器</td>
+<td><code>question-classifier</code></td>
+<td>多分支：每个类别一个输出分支</td>
+</tr>
+<tr>
+<td></td>
+<td>参数提取</td>
+<td><code>parameter-extractor</code></td>
+<td>按 schema 从文本抽取结构化参数</td>
+</tr>
+<tr>
+<td>知识/数据</td>
+<td>知识检索</td>
+<td><code>knowledge</code></td>
+<td>检索知识库，输出命中片段</td>
+</tr>
+<tr>
+<td></td>
+<td>知识写入</td>
+<td><code>knowledge-index</code></td>
+<td>写入/索引到知识库</td>
+</tr>
+<tr>
+<td></td>
+<td>数据源</td>
+<td><code>datasource</code></td>
+<td>提供文本/文件等数据</td>
+</tr>
+<tr>
+<td></td>
+<td>文档提取</td>
+<td><code>document-extractor</code></td>
+<td>从文档抽取文本</td>
+</tr>
+<tr>
+<td></td>
+<td><strong>本体操作</strong></td>
+<td><code>ontology</code></td>
+<td>query / traverse / execute_action（Palantir 风格）</td>
+</tr>
+<tr>
+<td>逻辑</td>
+<td>条件分支</td>
+<td><code>condition</code></td>
+<td>IF/ELSE，多条件</td>
+</tr>
+<tr>
+<td></td>
+<td>代码执行</td>
+<td><code>code</code></td>
+<td>Python/JS 代码（CodeMirror 编辑器）</td>
+</tr>
+<tr>
+<td></td>
+<td>模板转换</td>
+<td><code>template</code></td>
+<td>变量插值模板</td>
+</tr>
+<tr>
+<td></td>
+<td>HTTP 请求</td>
+<td><code>http-request</code></td>
+<td>调用外部 HTTP（JSON 编辑器配 body）</td>
+</tr>
+<tr>
+<td></td>
+<td>工具</td>
+<td><code>tool</code></td>
+<td>调用内置/外部工具</td>
+</tr>
+<tr>
+<td></td>
+<td>列表操作</td>
+<td><code>list-operator</code></td>
+<td>过滤/排序/切片列表</td>
+</tr>
+<tr>
+<td>流程</td>
+<td>迭代</td>
+<td><code>iteration</code></td>
+<td>对列表逐项执行子流程</td>
+</tr>
+<tr>
+<td></td>
+<td>循环</td>
+<td><code>loop</code></td>
+<td>条件循环</td>
+</tr>
+<tr>
+<td></td>
+<td>人工输入</td>
+<td><code>human-input</code></td>
+<td>暂停等待人工输入</td>
+</tr>
+<tr>
+<td>变量</td>
+<td>变量聚合</td>
+<td><code>variable-aggregator</code></td>
+<td>合并多路变量</td>
+</tr>
+<tr>
+<td></td>
+<td>变量赋值</td>
+<td><code>assigner</code></td>
+<td>赋值/写会话变量</td>
+</tr>
+<tr>
+<td>输出</td>
+<td>回复</td>
+<td><code>answer</code></td>
+<td>流式回复文本</td>
+</tr>
+<tr>
+<td></td>
+<td>结束</td>
+<td><code>end</code></td>
+<td>结束并产出最终输出</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">变量引用</h2>
+<p>节点输出可被下游用 <code>{{节点id.字段}}</code> 引用（如 <code>{{start.query}}</code>、<code>{{kb.text}}</code>、<code>{{code1.total}}</code>）。编辑器的「变量选择器」会列出上游节点的可用变量，避免手敲出错。</p>
+<h2 id="_2">本体操作节点</h2>
+<p><code>ontology</code> 节点把本体能力直接搬进工作流，操作切换时配置字段动态变化：</p>
+<ul>
+<li><code>query</code>：对象类型 / 搜索词 / 过滤 / 数量</li>
+<li><code>traverse</code>：连接类型 / 源对象 ID</li>
+<li><code>execute_action</code>：动作 / 对象 ID / 参数（执行时若动作绑定连接器则写回外部）</li>
+</ul>
+<h2 id="_3">运行调试</h2>
+<p>「运行」抽屉以 Dify 风格逐节点显示输出：每个节点完成后内联打印其输出（文本或格式化 JSON），便于调试数据如何在节点间流转。例如：
+<code>start{n:"4"} → code1{squares:[1,4,9,16],total:30} → tpl1「平方序列=… 平方和=30」→ 最终回复</code>。</p>
+<h2 id="_4">节点配置控件（按类型匹配）</h2>
+<ul>
+<li>代码 → CodeMirror 代码编辑器（语法高亮、行号、语言切换）</li>
+<li>JSON 类（HTTP body、工具参数、提取 schema）→ JSON 编辑器（高亮 + 格式化 + 校验）</li>
+<li>变量/表达式 → 表达式输入框 + 上游变量自动补全</li>
+<li>选择/数值/布尔/密钥 → 下拉 / 步进 / 开关 / 凭证选择器</li>
+</ul>
+<p>复用组件见 <code>apps/web-ele/src/views/agentscope/components/</code>：<code>CodeEditor.vue</code>、<code>JsonEditor.vue</code>、<code>VarInput.vue</code>、<code>PanelSection.vue</code>。</p>
+<div class="page-footer">
+  <span>AgentScope Admin · 静态 Wiki</span>
+  <span>← <a href="05-agents.html">智能体与模型配置 Agents</a> &nbsp;|&nbsp; <a href="07-knowledge.html">知识库与流水线 Knowledge</a> →</span>
+</div>
+</main>
+</div>
+</body>
+</html>

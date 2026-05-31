@@ -41,12 +41,19 @@ interface ToolEntry {
   result: string;
 }
 
+interface PendingConfirm {
+  replyId: string;
+  toolCalls: { id: string; input: Record<string, any>; name: string }[];
+}
+
 interface ChatMessage {
   role: 'assistant' | 'user';
   text: string;
   thinking?: string;
   tools: ToolEntry[];
   pending?: boolean;
+  // Set when the agent paused to request human approval of tool calls.
+  confirm?: null | PendingConfirm;
 }
 
 const agents = ref<AgentRecord[]>([]);
@@ -215,6 +222,73 @@ async function scrollToBottom() {
   if (wrap) wrap.scrollTop = wrap.scrollHeight;
 }
 
+// Apply a single streamed AgentEvent to the live assistant message.
+function applyEvent(live: ChatMessage, event: any) {
+  switch (event.type) {
+    case 'REQUIRE_USER_CONFIRM': {
+      // The agent paused: surface the pending tool calls for approval.
+      live.confirm = {
+        replyId: event.reply_id,
+        toolCalls: (event.tool_calls ?? []).map((tc: any) => ({
+          id: tc.id,
+          name: tc.name,
+          input: tc.input ?? {},
+        })),
+      };
+      break;
+    }
+    case 'TEXT_BLOCK_DELTA': {
+      live.text += event.delta ?? '';
+      break;
+    }
+    case 'THINKING_BLOCK_DELTA': {
+      live.thinking = (live.thinking ?? '') + (event.delta ?? '');
+      break;
+    }
+    case 'TOOL_CALL_DELTA': {
+      const t = live.tools.find((x) => x.id === event.tool_call_id);
+      if (t) t.args += event.delta ?? '';
+      break;
+    }
+    case 'TOOL_CALL_START': {
+      live.tools.push({
+        id: event.tool_call_id,
+        name: event.tool_call_name,
+        args: '',
+        result: '',
+      });
+      break;
+    }
+    case 'TOOL_RESULT_TEXT_DELTA': {
+      const t = live.tools.find((x) => x.id === event.tool_call_id);
+      if (t) t.result += event.delta ?? '';
+      break;
+    }
+  }
+  void scrollToBottom();
+}
+
+// Run one streaming turn, applying events to `live`. Used for both the initial
+// user message and the resume after a human-in-the-loop confirmation.
+async function runTurn(sid: string, live: ChatMessage, inputPayload: any) {
+  sending.value = true;
+  live.pending = true;
+  try {
+    await chatApi.streamChat({
+      agentId: agentId.value,
+      sessionId: sid,
+      input: inputPayload,
+      onEvent: (event) => applyEvent(live, event),
+    });
+  } catch (error: any) {
+    live.text += `\n[error] ${error?.message ?? error}`;
+  } finally {
+    live.pending = false;
+    sending.value = false;
+    await scrollToBottom();
+  }
+}
+
 async function send() {
   const text = input.value.trim();
   if (!text || sending.value) return;
@@ -224,59 +298,45 @@ async function send() {
   input.value = '';
   messages.value.push(
     { role: 'user', text, tools: [] },
-    { role: 'assistant', text: '', thinking: '', tools: [], pending: true },
+    {
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [],
+      pending: true,
+      confirm: null,
+    },
   );
   // Mutate through the reactive array element (not the raw object) so that
   // streamed deltas trigger re-renders.
   const live = messages.value[messages.value.length - 1] as ChatMessage;
-  sending.value = true;
   await scrollToBottom();
+  await runTurn(sid, live, {
+    name: 'user',
+    role: 'user',
+    content: [{ type: 'text', text }],
+  });
+}
 
-  try {
-    await chatApi.streamChat({
-      agentId: agentId.value,
-      sessionId: sid,
-      input: { name: 'user', role: 'user', content: [{ type: 'text', text }] },
-      onEvent: (event) => {
-        switch (event.type) {
-          case 'TEXT_BLOCK_DELTA': {
-            live.text += event.delta ?? '';
-            break;
-          }
-          case 'THINKING_BLOCK_DELTA': {
-            live.thinking = (live.thinking ?? '') + (event.delta ?? '');
-            break;
-          }
-          case 'TOOL_CALL_DELTA': {
-            const t = live.tools.find((x) => x.id === event.tool_call_id);
-            if (t) t.args += event.delta ?? '';
-            break;
-          }
-          case 'TOOL_CALL_START': {
-            live.tools.push({
-              id: event.tool_call_id,
-              name: event.tool_call_name,
-              args: '',
-              result: '',
-            });
-            break;
-          }
-          case 'TOOL_RESULT_TEXT_DELTA': {
-            const t = live.tools.find((x) => x.id === event.tool_call_id);
-            if (t) t.result += event.delta ?? '';
-            break;
-          }
-        }
-        void scrollToBottom();
+// Approve or reject all pending tool calls, then resume the same reply.
+async function resolveConfirm(live: ChatMessage, approve: boolean) {
+  if (!live.confirm || !sessionId.value) return;
+  const { replyId, toolCalls } = live.confirm;
+  live.confirm = null;
+  await runTurn(sessionId.value, live, {
+    type: 'USER_CONFIRM_RESULT',
+    reply_id: replyId,
+    confirm_results: toolCalls.map((tc) => ({
+      confirmed: approve,
+      tool_call: {
+        type: 'tool_use',
+        id: tc.id,
+        name: tc.name,
+        input: tc.input,
       },
-    });
-  } catch (error: any) {
-    live.text += `\n[error] ${error?.message ?? error}`;
-  } finally {
-    live.pending = false;
-    sending.value = false;
-    await scrollToBottom();
-  }
+      rules: null,
+    })),
+  });
 }
 
 function newSession() {
@@ -435,6 +495,47 @@ onMounted(async () => {
                 ></pre>
               </div>
               <div class="whitespace-pre-wrap">{{ m.text }}</div>
+              <!-- Human-in-the-loop: agent paused for tool-call approval -->
+              <div
+                v-if="m.confirm"
+                class="border-warning/40 bg-warning/5 mt-2 rounded border p-3 text-xs"
+              >
+                <div class="text-warning mb-2 font-medium">
+                  {{ $t('agentscope.session.confirmTitle') }}
+                </div>
+                <div
+                  v-for="tc in m.confirm.toolCalls"
+                  :key="tc.id"
+                  class="border-border bg-background/40 my-1 rounded border p-2"
+                >
+                  <div class="font-medium">
+                    <ElTag size="small" type="warning">tool</ElTag>
+                    {{ tc.name }}
+                  </div>
+                  <pre
+                    class="whitespace-pre-wrap"
+                    v-text="JSON.stringify(tc.input, null, 2)"
+                  ></pre>
+                </div>
+                <div class="mt-2 flex gap-2">
+                  <ElButton
+                    :loading="sending"
+                    size="small"
+                    type="primary"
+                    @click="resolveConfirm(m, true)"
+                  >
+                    {{ $t('agentscope.session.confirmApprove') }}
+                  </ElButton>
+                  <ElButton
+                    :loading="sending"
+                    size="small"
+                    type="danger"
+                    @click="resolveConfirm(m, false)"
+                  >
+                    {{ $t('agentscope.session.confirmReject') }}
+                  </ElButton>
+                </div>
+              </div>
               <span v-if="m.pending" class="animate-pulse">▋</span>
             </div>
           </div>

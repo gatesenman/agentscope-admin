@@ -115,7 +115,10 @@
     "inputPlaceholder": "输入消息，回车发送",
     "newSession": "新建会话",
     "noSession": "请先创建或选择会话",
-    "mcpAttachFailed": "MCP 服务器 {name} 注入失败"
+    "mcpAttachFailed": "MCP 服务器 {name} 注入失败",
+    "confirmTitle": "智能体请求执行以下工具，请确认：",
+    "confirmApprove": "批准并执行",
+    "confirmReject": "拒绝"
   },
   "integration": {
     "title": "集成中心",

@@ -10,10 +10,30 @@ export interface ChatInputMsg {
   content: { text: string; type: 'text' }[];
 }
 
+// A tool call awaiting human confirmation (echoed from RequireUserConfirmEvent).
+export interface ToolCallBlock {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: Record<string, any>;
+}
+
+// Reply to a RequireUserConfirmEvent: approve/reject each pending tool call.
+export interface UserConfirmResultInput {
+  type: 'USER_CONFIRM_RESULT';
+  reply_id: string;
+  confirm_results: {
+    confirmed: boolean;
+    rules: null;
+    tool_call: ToolCallBlock;
+  }[];
+}
+
 export interface StreamChatOptions {
   agentId: string;
   sessionId: string;
-  input: ChatInputMsg;
+  // Either a user message or an agent event (e.g. confirm result) to resume.
+  input: ChatInputMsg | UserConfirmResultInput;
   onEvent: (event: any) => void;
   signal?: AbortSignal;
 }

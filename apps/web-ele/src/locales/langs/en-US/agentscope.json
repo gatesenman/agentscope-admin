@@ -115,7 +115,10 @@
     "inputPlaceholder": "Type a message, Enter to send",
     "newSession": "New Session",
     "noSession": "Create or select a session first",
-    "mcpAttachFailed": "Failed to attach MCP server {name}"
+    "mcpAttachFailed": "Failed to attach MCP server {name}",
+    "confirmTitle": "The agent requests permission to run the following tool(s):",
+    "confirmApprove": "Approve & run",
+    "confirmReject": "Reject"
   },
   "integration": {
     "title": "Integration Center",

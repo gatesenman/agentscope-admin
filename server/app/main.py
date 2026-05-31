@@ -17,6 +17,7 @@ from .dashboard.router import router as dashboard_router
 from .knowledge.router import router as knowledge_router
 from .knowledge.tools import knowledge_tools_factory
 from .mcp_registry.router import router as mcp_registry_router
+from .observability.router import router as observability_router
 from .ontology.db import init_db
 from .ontology.router import router as ontology_router
 from .ontology.tools import ontology_tools_factory
@@ -71,6 +72,7 @@ def build_app():
     app.include_router(knowledge_router)
     app.include_router(workflow_router)
     app.include_router(mcp_registry_router)
+    app.include_router(observability_router)
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict:

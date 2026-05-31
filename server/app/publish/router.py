@@ -27,7 +27,8 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from ..agent_profile.models import AgentProfile
-from ..ontology.db import get_session
+from ..observability.models import UsageLog
+from ..ontology.db import engine, get_session
 from ..settings import get_settings
 from .models import AppApiKey, PublishedApp
 
@@ -376,6 +377,9 @@ async def _proxy_chat_events(
                 "content": [{"type": "text", "text": query}],
             },
         }
+        model_name = ""
+        if model_config is not None:
+            model_name = model_config.get("model_name", "")
         async with client.stream(
             "POST",
             "/chat/",
@@ -384,9 +388,42 @@ async def _proxy_chat_events(
         ) as stream:
             async for line in stream.aiter_lines():
                 if line:
+                    _capture_usage_frame(
+                        line, app, session_id, model_name,
+                    )
                     yield f"{line}\n"
                 else:
                     yield "\n"
+
+
+def _capture_usage_frame(
+    line: str,
+    app: PublishedApp,
+    session_id: str,
+    model_name: str,
+) -> None:
+    """Record token usage from a relayed ``MODEL_CALL_END`` SSE frame."""
+    if not line.startswith("data:"):
+        return
+    try:
+        event = json.loads(line[5:].strip())
+    except (ValueError, TypeError):
+        return
+    if event.get("type") != "MODEL_CALL_END":
+        return
+    with Session(engine) as db:
+        db.add(
+            UsageLog(
+                owner_user_id=app.owner_user_id,
+                agent_id=app.agent_id,
+                session_id=session_id,
+                source="app",
+                model_name=model_name or event.get("model_name", ""),
+                input_tokens=int(event.get("input_tokens", 0) or 0),
+                output_tokens=int(event.get("output_tokens", 0) or 0),
+            ),
+        )
+        db.commit()
 
 
 def _origin_allowed(app: PublishedApp, origin: str | None) -> bool:

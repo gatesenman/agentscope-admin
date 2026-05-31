@@ -105,6 +105,15 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        name: 'AgentScopeObservability',
+        path: '/agentscope/observability',
+        component: () => import('#/views/agentscope/observability/index.vue'),
+        meta: {
+          icon: 'lucide:activity',
+          title: $t('agentscope.menu.observability'),
+        },
+      },
+      {
         name: 'AgentScopeOrchestration',
         path: '/agentscope/orchestration',
         component: () => import('#/views/agentscope/orchestration/index.vue'),

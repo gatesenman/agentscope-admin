@@ -23,6 +23,7 @@ def init_db() -> None:
     from ..agent_profile import models as _ap_models  # noqa: F401
     from ..knowledge import models as _kb_models  # noqa: F401
     from ..mcp_registry import models as _mcp_models  # noqa: F401
+    from ..observability import models as _obs_models  # noqa: F401
     from ..preferences import models as _pref_models  # noqa: F401
     from ..publish import models as _pub_models  # noqa: F401
     from ..workflow import models as _wf_models  # noqa: F401

@@ -12,7 +12,8 @@
     "publish": "Publishing",
     "workflow": "Workflows",
     "knowledge": "Knowledge",
-    "mcp": "MCP Servers"
+    "mcp": "MCP Servers",
+    "observability": "Observability"
   },
   "common": {
     "create": "Create",
@@ -263,5 +264,19 @@
       "healthy": "Healthy",
       "unhealthy": "Unhealthy"
     }
+  },
+  "obs": {
+    "lastDays": "Last {days} days",
+    "noData": "No usage yet. Chat with an agent in the console, then come back.",
+    "totalCalls": "Model Calls",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "estCost": "Est. Cost (USD)",
+    "byModel": "By Model",
+    "recent": "Recent Calls",
+    "model": "Model",
+    "calls": "Calls",
+    "time": "Time",
+    "source": "Source"
   }
 }

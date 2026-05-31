@@ -6,6 +6,7 @@ export * as dashboardApi from './dashboard';
 export * as knowledgeApi from './knowledge';
 export * as mcpApi from './mcp';
 export * as modelApi from './model';
+export * as observabilityApi from './observability';
 export * as ontologyApi from './ontology';
 export * as publishApi from './publish';
 export * from './request';

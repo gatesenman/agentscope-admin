@@ -12,7 +12,8 @@
     "publish": "发布管理",
     "workflow": "工作流编排",
     "knowledge": "知识库",
-    "mcp": "MCP 服务器"
+    "mcp": "MCP 服务器",
+    "observability": "可观测性"
   },
   "common": {
     "create": "新建",
@@ -263,5 +264,19 @@
       "healthy": "正常",
       "unhealthy": "异常"
     }
+  },
+  "obs": {
+    "lastDays": "最近 {days} 天",
+    "noData": "暂无用量数据，去调试台与智能体对话后再来查看",
+    "totalCalls": "模型调用次数",
+    "inputTokens": "输入 Tokens",
+    "outputTokens": "输出 Tokens",
+    "estCost": "预估成本(USD)",
+    "byModel": "按模型统计",
+    "recent": "最近调用明细",
+    "model": "模型",
+    "calls": "调用次数",
+    "time": "时间",
+    "source": "来源"
   }
 }

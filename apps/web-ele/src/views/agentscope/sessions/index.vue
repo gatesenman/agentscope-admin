@@ -29,6 +29,7 @@ import {
   credentialApi,
   mcpApi,
   modelApi,
+  observabilityApi,
   sessionApi,
   workspaceApi,
 } from '#/api/agentscope';
@@ -225,6 +226,20 @@ async function scrollToBottom() {
 // Apply a single streamed AgentEvent to the live assistant message.
 function applyEvent(live: ChatMessage, event: any) {
   switch (event.type) {
+    case 'MODEL_CALL_END': {
+      // Persist token usage for the observability dashboard (best-effort).
+      void observabilityApi
+        .recordUsage({
+          agent_id: agentId.value,
+          session_id: sessionId.value,
+          source: 'playground',
+          model_name: modelName.value,
+          input_tokens: event.input_tokens ?? 0,
+          output_tokens: event.output_tokens ?? 0,
+        })
+        .catch(() => {});
+      break;
+    }
     case 'REQUIRE_USER_CONFIRM': {
       // The agent paused: surface the pending tool calls for approval.
       live.confirm = {

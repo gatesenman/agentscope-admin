@@ -127,6 +127,22 @@ curl -N http://localhost:8000/v1/apps/<token>/chat-messages \
 
 API keys are shown **once** on creation, stored only as SHA-256 hashes (`key_prefix` is kept for display), and can be revoked; last-used time is tracked. Public chat is proxied to the server's own AgentScope endpoints under the app owner's identity, so published apps reuse the same ontology tools and permission mode as the playground. Backend lives in `server/app/publish/` (`models.py` tables + `router.py` admin/public endpoints).
 
+## MCP servers
+
+A persistent registry of Model Context Protocol servers, managed under **智能体平台 → MCP 服务器** (`/agentscope/mcp`). Supports both `stdio` and `http` transports, stateful/stateless mode, tool allow/deny filters, and a one-click **test** that builds a real `MCPClient`, connects, and lists discovered tools (recording health + last error). Enabled servers are auto-attached to debug sessions on creation. Backend: `server/app/mcp_registry/`.
+
+## Human-in-the-loop tool confirmation
+
+When an agent runs under a permission mode that requires approval, AgentScope streams a `REQUIRE_USER_CONFIRM` event. The debug console (`/agentscope/sessions`) renders the pending tool calls with **Approve / Reject** controls and resumes the reply by posting back a `USER_CONFIRM_RESULT` on the same `reply_id` — no more bypassing permissions to get work done.
+
+## Observability (token usage & cost)
+
+AgentScope emits `MODEL_CALL_END` events carrying input/output token counts. Usage is captured at both edges we control — the debug console reports each call (`source=playground`) and the published-app proxy records usage server-side while relaying SSE frames (`source=app`) — and written to the `usage_log` table. The **可观测性** page (`/agentscope/observability`) aggregates totals, a per-model breakdown with estimated USD cost, and a recent-calls trace. Backend: `server/app/observability/` (`POST /admin/usage`, `GET /admin/usage/summary`, `GET /admin/usage/recent`).
+
+## Users & roles (multi-tenant / RBAC skeleton)
+
+Every domain table is scoped by `owner_user_id` (identity via the `X-User-ID` header). The **用户与角色** page (`/agentscope/users`) manages console members against a fixed role catalog (`admin` / `editor` / `viewer`) with permission codes. A default `admin` user is seeded on startup and protected from deletion. Backend: `server/app/rbac/` (`/admin/rbac/users`, `/admin/rbac/roles`, `/admin/rbac/me`).
+
 ---
 
 Based on [vue-vben-admin](https://github.com/vbenjs/vue-vben-admin) (MIT). Refer to the upstream repository for base framework documentation.

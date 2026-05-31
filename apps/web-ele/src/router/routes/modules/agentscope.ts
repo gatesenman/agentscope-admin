@@ -68,11 +68,39 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        name: 'AgentScopeWorkflow',
+        path: '/agentscope/workflow',
+        component: () => import('#/views/agentscope/workflow/index.vue'),
+        meta: {
+          icon: 'lucide:workflow',
+          title: $t('agentscope.menu.workflow'),
+        },
+      },
+      {
+        name: 'AgentScopeWorkflowEditor',
+        path: '/agentscope/workflow/:id',
+        component: () => import('#/views/agentscope/workflow/editor.vue'),
+        meta: {
+          activePath: '/agentscope/workflow',
+          hideInMenu: true,
+          title: $t('agentscope.menu.workflow'),
+        },
+      },
+      {
+        name: 'AgentScopeKnowledge',
+        path: '/agentscope/knowledge',
+        component: () => import('#/views/agentscope/knowledge/index.vue'),
+        meta: {
+          icon: 'lucide:book-open',
+          title: $t('agentscope.menu.knowledge'),
+        },
+      },
+      {
         name: 'AgentScopeOrchestration',
         path: '/agentscope/orchestration',
         component: () => import('#/views/agentscope/orchestration/index.vue'),
         meta: {
-          icon: 'lucide:workflow',
+          icon: 'lucide:git-merge',
           title: $t('agentscope.menu.orchestration'),
         },
       },

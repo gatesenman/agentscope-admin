@@ -9,7 +9,9 @@
     "orchestration": "多智能体编排",
     "integration": "集成中心",
     "schedules": "定时任务",
-    "publish": "发布管理"
+    "publish": "发布管理",
+    "workflow": "工作流编排",
+    "knowledge": "知识库"
   },
   "common": {
     "create": "新建",
@@ -29,7 +31,10 @@
     "deleteConfirm": "确定要删除吗？此操作不可撤销。",
     "empty": "暂无数据",
     "saveSuccess": "保存成功",
-    "deleteSuccess": "删除成功"
+    "deleteSuccess": "删除成功",
+    "back": "返回",
+    "enabled": "启用",
+    "confirmDelete": "确认删除？"
   },
   "agent": {
     "name": "名称",
@@ -169,5 +174,53 @@
     "embed": "嵌入网站",
     "iframe": "iframe 内嵌",
     "bubble": "浮动聊天气泡"
+  },
+  "workflow": {
+    "newWorkflow": "新建工作流",
+    "empty": "暂无工作流，点击右上角新建",
+    "nodes": "节点数",
+    "editCanvas": "编辑画布",
+    "addNode": "添加节点",
+    "selectNode": "在画布中选择一个节点进行配置",
+    "nodeTitle": "节点名称",
+    "run": "运行",
+    "executionLog": "执行日志",
+    "startHint": "开始节点定义工作流的输入变量（默认 query）。",
+    "credential": "凭证",
+    "model": "模型",
+    "systemPrompt": "系统提示词",
+    "prompt": "提示词",
+    "agent": "智能体",
+    "query": "检索查询",
+    "variable": "变量",
+    "operator": "运算符",
+    "value": "比较值",
+    "template": "模板内容",
+    "answer": "回复内容"
+  },
+  "knowledge": {
+    "newKb": "新建知识库",
+    "empty": "暂无知识库，点击右上角新建",
+    "manage": "管理",
+    "icon": "图标",
+    "docs": "文档",
+    "chunks": "分块",
+    "docName": "文档名称（可选）",
+    "docContent": "粘贴文本内容…",
+    "addDoc": "添加并索引",
+    "contentRequired": "请输入文档内容",
+    "indexed": "已索引",
+    "reindex": "重新索引",
+    "pipeline": "流水线",
+    "pipelineHint": "摄取流水线按顺序执行：提取 → 清洗 → 分块 → 索引。",
+    "chunkSize": "分块大小",
+    "chunkOverlap": "分块重叠",
+    "savePipeline": "保存流水线",
+    "reindexHint": "修改后需对文档重新索引生效。",
+    "pipelineSaved": "流水线已保存",
+    "retrieve": "检索测试",
+    "queryPlaceholder": "输入查询进行检索…",
+    "search": "检索",
+    "noHits": "暂无检索结果"
   }
 }

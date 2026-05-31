@@ -12,6 +12,9 @@ The frontend is built on [vue-vben-admin](https://github.com/vbenjs/vue-vben-adm
 - **Credentials & models** — manage LLM provider credentials (OpenAI / DashScope / DeepSeek / Anthropic / …) and pick models per session.
 - **Playground** — chat with an agent over an SSE stream, with live tool-call and thinking traces; auto-prefills the agent's saved model defaults and permission mode.
 - **Multi-agent orchestration** — sequential pipelines chaining agents' outputs.
+- **Workflow orchestration (Dify-style)** — a visual DAG canvas (Vue Flow) with `start / llm / agent / knowledge / condition / template / answer` nodes, template variables (`{{node.field}}`), conditional branching and SSE-streamed execution. Backend engine in `server/app/workflow/`.
+- **Knowledge base + pipeline** — knowledge bases with a configurable ingestion pipeline (extract → clean → split → index) and dependency-free TF-IDF retrieval. The same retrieval is reused as a workflow node and as the agent-callable `knowledge_search` tool. Backend in `server/app/knowledge/`.
+- **CLI** — `agentscope-admin` for serving, seeding and managing agents / knowledge / workflows / published apps / API keys. See [CLI](#cli).
 - **Publishing (Dify-style)** — freeze an agent into a public **App** exposing three integration surfaces, with multi-key management. See [Publishing](#publishing).
 - **Integration center** — ready-to-copy cURL / Python snippets for embedding the API.
 - **Dashboard** — aggregate stats across agents, credentials, sessions and the ontology.
@@ -21,15 +24,20 @@ The frontend is built on [vue-vben-admin](https://github.com/vbenjs/vue-vben-adm
 ```
 apps/web-ele          Vue 3 + Element Plus admin UI (vue-vben-admin)
   src/api/agentscope    Typed API client for the backend
-  src/views/agentscope  Dashboard / Agents / Ontology / Credentials / Sessions / Orchestration / Integration
+  src/views/agentscope  Dashboard / Agents / Ontology / Credentials / Sessions /
+                        Orchestration / Workflow / Knowledge / Publish / Integration
 server                FastAPI backend
-  app/main.py           Wires agentscope.create_app() + ontology + dashboard + auth-compat routers
+  app/main.py           Wires agentscope.create_app() + our routers + agent-tool factory
+  app/cli.py            `agentscope-admin` command-line interface
   app/ontology          Palantir-style ontology (SQLModel + SQLite) and agent tools
+  app/knowledge         Knowledge bases, ingestion pipeline, TF-IDF retrieval + tool
+  app/workflow          Dify-style DAG workflow model + topological SSE engine
+  app/publish           Published apps + API keys (Web App / REST / embed)
   app/dashboard         Aggregate stats
   app/compat_auth       Minimal auth endpoints for the vben demo shell (placeholder identity)
 ```
 
-AgentScope state (agents, sessions, credentials) is persisted via its built-in `RedisStorage` + `LocalWorkspaceManager`. The ontology is persisted separately in SQLite.
+AgentScope state (agents, sessions, credentials) is persisted via its built-in `RedisStorage` + `LocalWorkspaceManager`. The ontology, knowledge bases, workflows and published apps are persisted separately in SQLite. See [DEVELOPER.md](DEVELOPER.md) for the full module map and extension recipes.
 
 ## Prerequisites
 
@@ -41,7 +49,7 @@ AgentScope state (agents, sessions, credentials) is persisted via its built-in `
 
 ```bash
 ./start-dev.sh           # backend (:8000) + frontend (:5777)
-./start-dev.sh --seed    # also seed the enterprise-risk ontology first
+./start-dev.sh --seed    # also seed demo data (ontology + KB + RAG workflow) first
 ```
 
 The script creates the Python venv, installs backend + frontend deps on first run, checks Redis, then launches both servers and tears them down on Ctrl-C.
@@ -75,6 +83,26 @@ pnpm build:ele
 pnpm typecheck
 pnpm lint
 ```
+
+## CLI
+
+`agentscope-admin` operates the platform from the terminal. Run it from a source checkout via `./server/agentscope-admin …`, or install the console script with `cd server && pip install -e .`.
+
+```bash
+agentscope-admin serve --reload                      # launch the backend
+agentscope-admin seed                                # demo ontology + KB + workflow
+agentscope-admin agents list
+agentscope-admin knowledge retrieve <kb_id> "可疑交易上报阈值"
+agentscope-admin workflow run <workflow_id> --input query="电汇要上报吗"
+agentscope-admin publish list
+agentscope-admin keys create <app_id> --name ci-key
+```
+
+Global flags: `--base-url` (env `AGENTSCOPE_ADMIN_BASE_URL`, default `http://localhost:8000`), `--user` (env `AGENTSCOPE_ADMIN_USER`, default `admin`), `--json`. Commands that manage resources talk to a _running_ backend.
+
+## Developer guide
+
+For extending the platform (adding a workflow node, an API endpoint, a page, or a pipeline stage), see [DEVELOPER.md](DEVELOPER.md) — written to be AI-agent friendly for second-stage development.
 
 ## Publishing
 

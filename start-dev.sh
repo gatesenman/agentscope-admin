@@ -59,4 +59,5 @@ pnpm dev:ele &
 pids+=($!)
 
 echo "[dev] backend=8000  frontend=5777 — press Ctrl-C to stop both."
+echo "[dev] CLI: ./server/agentscope-admin --help  (or: cd server && pip install -e .)"
 wait

@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentscope-admin"
+version = "0.1.0"
+description = "Backend + CLI for the AgentScope Admin platform (agent lifecycle, Palantir-style ontology, Dify-style workflow orchestration and knowledge pipelines)."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "agentscope @ git+https://github.com/agentscope-ai/agentscope.git",
+  "fastapi==0.136.3",
+  "uvicorn[standard]==0.48.0",
+  "redis==8.0.0",
+  "sqlmodel==0.0.38",
+  "pydantic==2.13.4",
+  "pydantic-settings==2.14.1",
+  "sse-starlette==3.4.4",
+  "APScheduler==3.11.2",
+  "python-multipart==0.0.29",
+  "requests>=2.31",
+]
+
+[project.scripts]
+agentscope-admin = "app.cli:main"
+
+[tool.setuptools]
+packages = ["app"]

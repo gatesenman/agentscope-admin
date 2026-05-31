@@ -6,3 +6,7 @@ data/
 *.db
 *.sqlite3
 .env
+*.egg-info/
+.eggs/
+build/
+dist/

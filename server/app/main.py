@@ -14,12 +14,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from .agent_profile.router import router as agent_profile_router
 from .compat_auth.router import router as auth_router
 from .dashboard.router import router as dashboard_router
+from .knowledge.router import router as knowledge_router
+from .knowledge.tools import knowledge_tools_factory
 from .ontology.db import init_db
 from .ontology.router import router as ontology_router
 from .ontology.tools import ontology_tools_factory
 from .preferences.router import router as preferences_router
 from .publish.router import router as publish_router
 from .settings import get_settings
+from .workflow.router import router as workflow_router
 
 
 def build_app():
@@ -34,10 +37,16 @@ def build_app():
     )
     workspace_manager = LocalWorkspaceManager(basedir=settings.workspace_dir)
 
+    async def extra_agent_tools(user_id: str, agent_id: str, session_id: str):
+        """Combine ontology + knowledge tools for the running agent."""
+        tools = await ontology_tools_factory(user_id, agent_id, session_id)
+        tools += await knowledge_tools_factory(user_id, agent_id, session_id)
+        return tools
+
     app = create_app(
         storage=storage,
         workspace_manager=workspace_manager,
-        extra_agent_tools=ontology_tools_factory,
+        extra_agent_tools=extra_agent_tools,
         title=settings.title,
         version=settings.version,
     )
@@ -58,6 +67,8 @@ def build_app():
     app.include_router(preferences_router)
     app.include_router(agent_profile_router)
     app.include_router(publish_router)
+    app.include_router(knowledge_router)
+    app.include_router(workflow_router)
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict:

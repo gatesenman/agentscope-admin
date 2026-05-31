@@ -15,6 +15,14 @@ if [ ! -d .venv ]; then
 fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
+
+BASE_URL="${1:-http://localhost:8000}"
+USER_ID="${2:-admin}"
+
 echo "[seed] seeding enterprise-risk ontology…"
-python scripts/seed_risk_ontology.py
+python scripts/seed_risk_ontology.py "$BASE_URL" "$USER_ID"
+
+echo "[seed] seeding demo knowledge base + RAG workflow…"
+python scripts/seed_knowledge_workflow.py "$BASE_URL" "$USER_ID"
+
 echo "[seed] done."

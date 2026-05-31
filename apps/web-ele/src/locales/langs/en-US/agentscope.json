@@ -9,7 +9,9 @@
     "orchestration": "Orchestration",
     "integration": "Integration",
     "schedules": "Schedules",
-    "publish": "Publishing"
+    "publish": "Publishing",
+    "workflow": "Workflows",
+    "knowledge": "Knowledge"
   },
   "common": {
     "create": "Create",
@@ -29,7 +31,10 @@
     "deleteConfirm": "Are you sure to delete? This cannot be undone.",
     "empty": "No data",
     "saveSuccess": "Saved",
-    "deleteSuccess": "Deleted"
+    "deleteSuccess": "Deleted",
+    "back": "Back",
+    "enabled": "Enabled",
+    "confirmDelete": "Delete this item?"
   },
   "agent": {
     "name": "Name",
@@ -169,5 +174,53 @@
     "embed": "Embed",
     "iframe": "iframe Embed",
     "bubble": "Chat Bubble"
+  },
+  "workflow": {
+    "newWorkflow": "New Workflow",
+    "empty": "No workflows yet. Click New to create one.",
+    "nodes": "Nodes",
+    "editCanvas": "Edit Canvas",
+    "addNode": "Add Node",
+    "selectNode": "Select a node on the canvas to configure it",
+    "nodeTitle": "Node Title",
+    "run": "Run",
+    "executionLog": "Execution Log",
+    "startHint": "The start node defines workflow input variables (default: query).",
+    "credential": "Credential",
+    "model": "Model",
+    "systemPrompt": "System Prompt",
+    "prompt": "Prompt",
+    "agent": "Agent",
+    "query": "Retrieval Query",
+    "variable": "Variable",
+    "operator": "Operator",
+    "value": "Value",
+    "template": "Template",
+    "answer": "Answer"
+  },
+  "knowledge": {
+    "newKb": "New Knowledge Base",
+    "empty": "No knowledge bases yet. Click New to create one.",
+    "manage": "Manage",
+    "icon": "Icon",
+    "docs": "Documents",
+    "chunks": "Chunks",
+    "docName": "Document name (optional)",
+    "docContent": "Paste text content…",
+    "addDoc": "Add & Index",
+    "contentRequired": "Please enter document content",
+    "indexed": "Indexed",
+    "reindex": "Reindex",
+    "pipeline": "Pipeline",
+    "pipelineHint": "Ingestion pipeline runs in order: extract → clean → split → index.",
+    "chunkSize": "Chunk Size",
+    "chunkOverlap": "Chunk Overlap",
+    "savePipeline": "Save Pipeline",
+    "reindexHint": "Reindex documents to apply changes.",
+    "pipelineSaved": "Pipeline saved",
+    "retrieve": "Retrieval Test",
+    "queryPlaceholder": "Enter a query to retrieve…",
+    "search": "Search",
+    "noHits": "No results yet"
   }
 }

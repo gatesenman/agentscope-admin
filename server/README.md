@@ -6,7 +6,8 @@ FastAPI service built directly on top of AgentScope's app layer (`agentscope.cre
 
 ```bash
 ./start.sh                 # venv + deps + Redis check + uvicorn --reload
-./seed.sh                  # seed the enterprise-risk demo ontology
+./seed.sh                  # seed demo data (ontology + KB + RAG workflow)
+./agentscope-admin --help  # CLI (or: pip install -e . for a global command)
 ```
 
 Manual equivalent:
@@ -36,14 +37,19 @@ See `app/settings.py` for the full settings model.
 ## Layout
 
 ```
-app/main.py            create_app() + router wiring
+app/main.py            create_app() + router wiring + combined agent-tool factory
+app/cli.py             `agentscope-admin` CLI (argparse + requests)
 app/ontology           Palantir ontology: SQLModel tables, REST, agent tools
+app/knowledge          Knowledge bases, ingestion pipeline, TF-IDF retrieval + tool
+app/workflow           Dify-style DAG workflow model + topological SSE engine
+app/publish            Published apps + API keys (Web App / REST / embed)
 app/agent_profile      Per-agent model defaults + permission mode (SQLModel + REST)
 app/dashboard          Aggregate stats endpoint
 app/preferences        vben UI preference persistence (per user)
 app/compat_auth        Minimal auth endpoints for the vben shell
 app/settings.py        Pydantic settings (Redis, paths)
-scripts/seed_risk_ontology.py   Enterprise-risk demo seed (idempotent)
+scripts/seed_risk_ontology.py        Enterprise-risk demo ontology (idempotent)
+scripts/seed_knowledge_workflow.py   Demo knowledge base + RAG workflow (idempotent)
 ```
 
 ## Persistence
@@ -60,5 +66,9 @@ scripts/seed_risk_ontology.py   Enterprise-risk demo seed (idempotent)
 | `/ontology/...` | full CRUD | Object types / properties / link types / action types / instances |
 | GET | `/dashboard/stats` | Aggregate counts |
 | GET/PUT | `/preferences` | vben UI preferences per user |
+| `/admin/knowledge-bases/...` | full CRUD | Knowledge bases, documents, retrieve test |
+| `/admin/workflows/...` | full CRUD + `/{id}/run` | Workflow graphs + SSE execution |
+| `/admin/published-apps/...` | full CRUD + `/keys` | Published apps + API keys |
+| POST | `/v1/apps/{token}/chat-messages` | Public REST chat (Bearer key, Dify-style) |
 
 The full AgentScope surface (agent, session, chat SSE, credential, model, schedule, workspace/mcp, workspace/skill, background-tasks, …) is mounted unchanged — see `/docs`.

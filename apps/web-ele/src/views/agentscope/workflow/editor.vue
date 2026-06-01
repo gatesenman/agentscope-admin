@@ -301,6 +301,27 @@ const selectedOutputExpr = computed(() => {
   return `{{${node.id}.${outputFieldHint(node.type)}}}`;
 });
 
+// Node types that perform real I/O and can therefore fail at runtime — these
+// expose a Dify-style "error handling + retry" section.
+const ERROR_HANDLING_NODES = new Set([
+  'agent',
+  'code',
+  'document-extractor',
+  'http-request',
+  'knowledge',
+  'knowledge-index',
+  'llm',
+  'ontology',
+  'parameter-extractor',
+  'question-classifier',
+  'tool',
+]);
+
+const supportsErrorHandling = computed(
+  () =>
+    !!selectedNode.value && ERROR_HANDLING_NODES.has(selectedNode.value.type),
+);
+
 // Walk edges backwards to collect ancestor node ids of the selected node.
 const upstreamVars = computed<VarGroup[]>(() => {
   if (!selectedId.value) return [];
@@ -661,6 +682,15 @@ function addClass() {
 watch(selectedId, () => {
   const node = selectedNode.value;
   if (!node) return;
+  // Ensure executable nodes carry an error_handling object so the panel binds.
+  if (ERROR_HANDLING_NODES.has(node.type) && !node.data.error_handling) {
+    node.data.error_handling = {
+      strategy: 'fail',
+      max_retries: 0,
+      retry_interval_ms: 1000,
+      default_text: '',
+    };
+  }
   if (node.type === 'ontology') {
     syncOntologyText();
     if (node.data?.ontology_id) void loadOntologyMeta(node.data.ontology_id);
@@ -830,6 +860,20 @@ async function doRun() {
 
             break;
           }
+          case 'node_error': {
+            const label =
+              nodeTitles.value[ev.node_id ?? ''] ?? ev.node_id ?? '';
+            let how = '已处理';
+            if (ev.handled === 'default') how = '已用默认值继续';
+            else if (ev.handled === 'fail-branch') how = '已走失败分支';
+            runLog.value.push({
+              type: 'warn',
+              text: `${label} 出错（${how}）`,
+              detail: ev.error,
+            });
+
+            break;
+          }
           case 'node_finished': {
             const nid = ev.node_id ?? '';
             const label = nodeTitles.value[nid] ?? nid;
@@ -837,6 +881,17 @@ async function doRun() {
               type: 'done',
               text: label,
               detail: previewOutput(ev.output),
+            });
+
+            break;
+          }
+          case 'node_retry': {
+            const label =
+              nodeTitles.value[ev.node_id ?? ''] ?? ev.node_id ?? '';
+            runLog.value.push({
+              type: 'warn',
+              text: `重试 ${label} (第 ${ev.attempt}/${ev.max_retries} 次)`,
+              detail: ev.error,
             });
 
             break;
@@ -1835,6 +1890,65 @@ onMounted(load);
                   </ElFormItem>
                 </PanelSection>
               </template>
+
+              <!-- shared: error handling + retry (Dify-style) -->
+              <template
+                v-if="supportsErrorHandling && selectedNode.data.error_handling"
+              >
+                <PanelSection
+                  title="错误处理与重试"
+                  icon="lucide:shield-alert"
+                  :default-collapsed="true"
+                >
+                  <ElFormItem label="失败重试次数">
+                    <ElInputNumber
+                      v-model="selectedNode.data.error_handling.max_retries"
+                      :min="0"
+                      :max="10"
+                    />
+                  </ElFormItem>
+                  <ElFormItem label="重试间隔 (毫秒)">
+                    <ElInputNumber
+                      v-model="
+                        selectedNode.data.error_handling.retry_interval_ms
+                      "
+                      :min="0"
+                      :step="500"
+                    />
+                  </ElFormItem>
+                  <ElFormItem label="重试用尽后">
+                    <ElSelect
+                      v-model="selectedNode.data.error_handling.strategy"
+                    >
+                      <ElOption label="终止流程（默认）" value="fail" />
+                      <ElOption label="使用默认值并继续" value="default" />
+                      <ElOption label="走失败分支 (fail)" value="branch" />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem
+                    v-if="
+                      selectedNode.data.error_handling.strategy === 'default'
+                    "
+                    label="默认输出文本"
+                  >
+                    <ElInput
+                      v-model="selectedNode.data.error_handling.default_text"
+                      type="textarea"
+                      :rows="2"
+                      placeholder="出错时作为本节点 text 输出，供下游引用"
+                    />
+                  </ElFormItem>
+                  <p
+                    v-if="
+                      selectedNode.data.error_handling.strategy === 'branch'
+                    "
+                    class="wf-hint"
+                  >
+                    从本节点拖出一条连线并将其 sourceHandle 设为
+                    <code>fail</code>，失败时只走该分支。
+                  </p>
+                </PanelSection>
+              </template>
             </ElForm>
           </div>
         </ElScrollbar>
@@ -1864,7 +1978,14 @@ onMounted(load);
       >
         <div v-for="(l, i) in runLog" :key="i" style="margin-bottom: 4px">
           <div
-            :style="{ color: l.type === 'error' ? '#ef4444' : undefined }"
+            :style="{
+              color:
+                l.type === 'error'
+                  ? '#ef4444'
+                  : l.type === 'warn'
+                    ? '#f59e0b'
+                    : undefined,
+            }"
             style="
               display: flex;
               gap: 6px;
@@ -1878,9 +1999,11 @@ onMounted(load);
               :icon="
                 l.type === 'error'
                   ? 'lucide:x-circle'
-                  : l.type === 'node'
-                    ? 'lucide:play'
-                    : 'lucide:check'
+                  : l.type === 'warn'
+                    ? 'lucide:alert-triangle'
+                    : l.type === 'node'
+                      ? 'lucide:play'
+                      : 'lucide:check'
               "
             />
             {{ l.text }}

@@ -10,6 +10,7 @@ router relays over SSE.
 from __future__ import annotations
 
 import ast
+import asyncio
 import json
 import operator as _op
 import re
@@ -82,6 +83,36 @@ _CODE_SAFE_BUILTINS = {
 
 
 _MISSING = object()
+
+
+class _NodeFailure(Exception):
+    """Raised internally when a node runner reports a failure.
+
+    Node runners signal failure by returning an output dict with a truthy
+    ``error`` key. The engine converts that into this exception so the same
+    retry / error-strategy path handles both raised exceptions and
+    error-dict outputs uniformly."""
+
+
+def _node_default_output(err_cfg: dict[str, Any]) -> dict[str, Any]:
+    """Build a node's fallback output when its error strategy is ``default``.
+
+    Accepts either a ``default_output`` object/JSON string or a plain
+    ``default_text``; always exposes a ``text`` field so downstream templates
+    referencing ``{{node.text}}`` keep working after a handled failure."""
+    raw = err_cfg.get("default_output")
+    out: dict[str, Any] = {}
+    if isinstance(raw, dict):
+        out = dict(raw)
+    elif isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+            out = parsed if isinstance(parsed, dict) else {"text": raw}
+        except (ValueError, TypeError):
+            out = {"text": raw}
+    if "text" not in out:
+        out["text"] = err_cfg.get("default_text", "") or ""
+    return out
 
 
 def _traverse(cur: Any, parts: list[str]) -> Any:
@@ -241,74 +272,149 @@ class WorkflowEngine:
                 {"type": "node_started", "node_id": nid, "node_type": ntype, "title": title},
             )
 
+            # Per-node error handling + retry (Dify-style): nodes may declare
+            # ``error_handling`` with a retry policy and a strategy of
+            # ``fail`` (abort run, default), ``default`` (substitute a fallback
+            # output and continue) or ``branch`` (route to the ``fail`` handle).
+            err_cfg = data.get("error_handling") or {}
+            try:
+                max_retries = max(0, int(err_cfg.get("max_retries") or 0))
+            except (TypeError, ValueError):
+                max_retries = 0
+            try:
+                retry_interval = max(0.0, float(err_cfg.get("retry_interval_ms") or 0) / 1000.0)
+            except (TypeError, ValueError):
+                retry_interval = 0.0
+            strategy = err_cfg.get("strategy") or "fail"
+
             output: dict[str, Any] = {}
-            if ntype in {"start", "trigger-webhook", "trigger-schedule", "trigger-plugin"}:
-                output = dict(inputs)
-                self.context["start"] = dict(inputs)
-                for k, v in inputs.items():
-                    self.context.setdefault(k, v)
-            elif ntype == "llm":
-                async for frame, text in self._run_llm(nid, data):
-                    if frame:
-                        yield frame
-                    output["text"] = text
-            elif ntype == "agent":
-                async for frame, text in self._run_agent(nid, data):
-                    if frame:
-                        yield frame
-                    output["text"] = text
-            elif ntype == "knowledge":
-                output = self._run_knowledge(data)
-            elif ntype == "ontology":
-                output = self._run_ontology(data)
-            elif ntype == "template":
-                output = {"text": _resolve(data.get("template", ""), self.context)}
-            elif ntype == "condition":
-                chosen = self._eval_condition(data)
-                branch[nid] = chosen
-                output = {"branch": chosen}
-            elif ntype == "question-classifier":
-                chosen, output = await self._run_classifier(data)
-                branch[nid] = chosen
-            elif ntype == "parameter-extractor":
-                output = await self._run_parameter_extractor(data)
-            elif ntype == "code":
-                output = self._run_code(data)
-            elif ntype == "http-request":
-                output = await self._run_http(data)
-            elif ntype == "tool":
-                output = await self._run_tool(data)
-            elif ntype == "list-operator":
-                output = self._run_list_operator(data)
-            elif ntype == "iteration":
-                output = self._run_iteration(data)
-            elif ntype == "loop":
-                output = self._run_loop(data)
-            elif ntype == "variable-aggregator":
-                output = self._run_variable_aggregator(data)
-            elif ntype == "assigner":
-                output = self._run_assigner(data)
-            elif ntype == "document-extractor":
-                output = self._run_document_extractor(data)
-            elif ntype == "datasource":
-                output = self._run_datasource(data)
-            elif ntype == "knowledge-index":
-                output = self._run_knowledge_index(data)
-            elif ntype == "human-input":
-                output = self._run_human_input(data)
-            elif ntype in {"answer", "end"}:
-                output = {"text": _resolve(data.get("answer", ""), self.context)}
-                final_answer = output["text"]
+            node_failed = False
+            attempt = 0
+            while True:
+                try:
+                    output = {}
+                    if ntype in {"start", "trigger-webhook", "trigger-schedule", "trigger-plugin"}:
+                        output = dict(inputs)
+                        self.context["start"] = dict(inputs)
+                        for k, v in inputs.items():
+                            self.context.setdefault(k, v)
+                    elif ntype == "llm":
+                        async for frame, text in self._run_llm(nid, data):
+                            if frame:
+                                yield frame
+                            output["text"] = text
+                    elif ntype == "agent":
+                        async for frame, text in self._run_agent(nid, data):
+                            if frame:
+                                yield frame
+                            output["text"] = text
+                    elif ntype == "knowledge":
+                        output = self._run_knowledge(data)
+                    elif ntype == "ontology":
+                        output = self._run_ontology(data)
+                    elif ntype == "template":
+                        output = {"text": _resolve(data.get("template", ""), self.context)}
+                    elif ntype == "condition":
+                        chosen = self._eval_condition(data)
+                        branch[nid] = chosen
+                        output = {"branch": chosen}
+                    elif ntype == "question-classifier":
+                        chosen, output = await self._run_classifier(data)
+                        branch[nid] = chosen
+                    elif ntype == "parameter-extractor":
+                        output = await self._run_parameter_extractor(data)
+                    elif ntype == "code":
+                        output = self._run_code(data)
+                    elif ntype == "http-request":
+                        output = await self._run_http(data)
+                    elif ntype == "tool":
+                        output = await self._run_tool(data)
+                    elif ntype == "list-operator":
+                        output = self._run_list_operator(data)
+                    elif ntype == "iteration":
+                        output = self._run_iteration(data)
+                    elif ntype == "loop":
+                        output = self._run_loop(data)
+                    elif ntype == "variable-aggregator":
+                        output = self._run_variable_aggregator(data)
+                    elif ntype == "assigner":
+                        output = self._run_assigner(data)
+                    elif ntype == "document-extractor":
+                        output = self._run_document_extractor(data)
+                    elif ntype == "datasource":
+                        output = self._run_datasource(data)
+                    elif ntype == "knowledge-index":
+                        output = self._run_knowledge_index(data)
+                    elif ntype == "human-input":
+                        output = self._run_human_input(data)
+                    elif ntype in {"answer", "end"}:
+                        output = {"text": _resolve(data.get("answer", ""), self.context)}
+                        final_answer = output["text"]
+                    if isinstance(output, dict) and output.get("error"):
+                        # A runner reported a failure via its output dict; route
+                        # it through the same retry / error-strategy handling.
+                        raise _NodeFailure(str(output["error"]))
+                    break
+                except Exception as exc:  # noqa: BLE001 - per-node error policy
+                    if attempt < max_retries:
+                        attempt += 1
+                        yield _event(
+                            {
+                                "type": "node_retry",
+                                "node_id": nid,
+                                "attempt": attempt,
+                                "max_retries": max_retries,
+                                "error": str(exc),
+                            },
+                        )
+                        if retry_interval:
+                            await asyncio.sleep(retry_interval)
+                        continue
+                    if strategy == "default":
+                        output = _node_default_output(err_cfg)
+                        yield _event(
+                            {
+                                "type": "node_error",
+                                "node_id": nid,
+                                "error": str(exc),
+                                "handled": "default",
+                                "output": output,
+                            },
+                        )
+                        break
+                    if strategy == "branch":
+                        node_failed = True
+                        output = {"error": str(exc)}
+                        branch[nid] = "fail"
+                        yield _event(
+                            {
+                                "type": "node_error",
+                                "node_id": nid,
+                                "error": str(exc),
+                                "handled": "fail-branch",
+                            },
+                        )
+                        break
+                    yield _event({"type": "error", "node_id": nid, "message": str(exc)})
+                    return
 
             self.context[nid] = output
             yield _event({"type": "node_finished", "node_id": nid, "output": output})
 
             # Activate downstream nodes via taken edges.
             for e in self.out_edges.get(nid, []):
+                handle = e.get("sourceHandle")
                 if ntype in {"condition", "question-classifier"}:
                     default_handle = "true" if ntype == "condition" else ""
-                    handle = e.get("sourceHandle") or default_handle
-                    if handle != branch.get(nid):
+                    if (handle or default_handle) != branch.get(nid):
+                        continue
+                elif strategy == "branch":
+                    # With a fail branch configured the ``fail`` handle is taken
+                    # only on failure; normal handles only on success.
+                    if node_failed:
+                        if handle != "fail":
+                            continue
+                    elif handle == "fail":
                         continue
                 reachable.add(e["target"])
 
@@ -486,6 +592,10 @@ class WorkflowEngine:
         }
         if isinstance(result, dict) and isinstance(result.get("items"), list):
             out["objects"] = result["items"]
+        if isinstance(result, dict) and result.get("error"):
+            # Surface failures at the top level so the engine's per-node error
+            # handling (retry / default / fail-branch) can act on them.
+            out["error"] = result["error"]
         return out
 
     # ----- shared helpers ------------------------------------------------- #

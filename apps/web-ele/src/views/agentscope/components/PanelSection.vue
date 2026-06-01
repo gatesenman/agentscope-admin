@@ -3,15 +3,16 @@ import { ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
+    defaultCollapsed?: boolean;
     icon?: string;
     title: string;
   }>(),
-  { icon: 'lucide:settings-2' },
+  { icon: 'lucide:settings-2', defaultCollapsed: false },
 );
 
-const open = ref(true);
+const open = ref(!props.defaultCollapsed);
 </script>
 
 <template>

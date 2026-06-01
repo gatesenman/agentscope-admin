@@ -64,7 +64,9 @@ export function deleteWorkflow(id: string) {
 export interface WorkflowRunEvent {
   type:
     | 'error'
+    | 'node_error'
     | 'node_finished'
+    | 'node_retry'
     | 'node_started'
     | 'text_delta'
     | 'workflow_finished'
@@ -75,6 +77,10 @@ export interface WorkflowRunEvent {
   delta?: string;
   output?: any;
   message?: string;
+  error?: string;
+  attempt?: number;
+  max_retries?: number;
+  handled?: string;
 }
 
 export interface RunWorkflowOptions {

@@ -81,17 +81,35 @@ _CODE_SAFE_BUILTINS = {
 }
 
 
+_MISSING = object()
+
+
+def _traverse(cur: Any, parts: list[str]) -> Any:
+    """Walk a dotted path over nested dicts/lists. Supports integer list
+    indices (e.g. ``items.0.id``). Returns ``_MISSING`` if any step fails."""
+    for part in parts:
+        if isinstance(cur, dict) and part in cur:
+            cur = cur[part]
+        elif isinstance(cur, (list, tuple)):
+            try:
+                idx = int(part)
+            except (TypeError, ValueError):
+                return _MISSING
+            if -len(cur) <= idx < len(cur):
+                cur = cur[idx]
+            else:
+                return _MISSING
+        else:
+            return _MISSING
+    return cur
+
+
 def _dig(item: Any, field: str | None) -> Any:
     """Read ``field`` (dot path) out of a dict/list item; identity if no field."""
     if not field:
         return item
-    cur = item
-    for part in str(field).split("."):
-        if isinstance(cur, dict) and part in cur:
-            cur = cur[part]
-        else:
-            return None
-    return cur
+    value = _traverse(item, str(field).split("."))
+    return None if value is _MISSING else value
 
 
 def _compare(left: Any, op: str, right: Any) -> bool:
@@ -144,13 +162,9 @@ def _resolve(template: str, context: dict[str, Any]) -> str:
     """Resolve ``{{a.b.c}}`` references against the run context."""
 
     def repl(match: re.Match[str]) -> str:
-        path = match.group(1).split(".")
-        cur: Any = context
-        for part in path:
-            if isinstance(cur, dict) and part in cur:
-                cur = cur[part]
-            else:
-                return ""
+        cur = _traverse(context, match.group(1).split("."))
+        if cur is _MISSING:
+            return ""
         return cur if isinstance(cur, str) else json.dumps(cur, ensure_ascii=False)
 
     return _TEMPLATE.sub(repl, template or "")
@@ -466,7 +480,13 @@ class WorkflowEngine:
                 result = {"error": f"Unknown ontology operation: {op!r}"}
         except ontology_service.OntologyError as exc:
             result = {"error": str(exc)}
-        return {"result": result, "text": json.dumps(result, ensure_ascii=False, default=str)}
+        out: dict[str, Any] = {
+            "result": result,
+            "text": json.dumps(result, ensure_ascii=False, default=str),
+        }
+        if isinstance(result, dict) and isinstance(result.get("items"), list):
+            out["objects"] = result["items"]
+        return out
 
     # ----- shared helpers ------------------------------------------------- #
     def _lookup(self, path: str) -> Any:
@@ -474,13 +494,8 @@ class WorkflowEngine:
         if not path:
             return None
         clean = path.replace("{{", "").replace("}}", "").strip()
-        cur: Any = self.context
-        for part in clean.split("."):
-            if isinstance(cur, dict) and part in cur:
-                cur = cur[part]
-            else:
-                return None
-        return cur
+        value = _traverse(self.context, clean.split("."))
+        return None if value is _MISSING else value
 
     def _resolve_json(self, value: Any) -> dict[str, Any]:
         """Coerce a dict or JSON-string config value into a resolved dict."""
@@ -741,6 +756,7 @@ class WorkflowEngine:
         ]
         return {
             "result": results,
+            "results": results,
             "length": len(results),
             "text": "\n".join(str(r) for r in results),
         }
@@ -797,7 +813,12 @@ class WorkflowEngine:
                 value = raw
             self.context[name] = value
             assigned[name] = value
-        return {"assigned": assigned, "text": json.dumps(assigned, ensure_ascii=False, default=str)}
+        out: dict[str, Any] = {
+            "assigned": assigned,
+            "text": json.dumps(assigned, ensure_ascii=False, default=str),
+        }
+        out.update(assigned)
+        return out
 
     # ----- data nodes ----------------------------------------------------- #
     def _run_document_extractor(self, data: dict[str, Any]) -> dict[str, Any]:

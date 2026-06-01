@@ -278,6 +278,12 @@ function nodeOutputFields(type: string, data?: any): string[] {
         .filter(Boolean);
       return vars.length > 0 ? vars : ['query'];
     }
+    case 'tool': {
+      return ['result', 'text'];
+    }
+    case 'variable-aggregator': {
+      return ['output', 'text'];
+    }
     default: {
       return ['text'];
     }

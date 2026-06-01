@@ -568,11 +568,24 @@ class WorkflowEngine:
     def _run_knowledge(self, data: dict[str, Any]) -> dict[str, Any]:
         kb_id = data.get("kb_id", "")
         query = _resolve(data.get("query", "") or "{{start.query}}", self.context)
+        raw_k = data.get("top_k")
+        try:
+            top_k = int(raw_k) if raw_k not in (None, "", 0, "0") else None
+        except (TypeError, ValueError):
+            top_k = None
+        raw_thr = data.get("score_threshold")
+        try:
+            score_threshold = float(raw_thr) if raw_thr not in (None, "") else None
+        except (TypeError, ValueError):
+            score_threshold = None
+        method = data.get("retrieval_method") or None
         hits = knowledge_service.retrieve(
             self.session,
             kb_id,
             query,
-            top_k=data.get("top_k"),
+            top_k=top_k,
+            score_threshold=score_threshold,
+            method=method,
         )
         text = "\n\n".join(h["content"] for h in hits)
         return {

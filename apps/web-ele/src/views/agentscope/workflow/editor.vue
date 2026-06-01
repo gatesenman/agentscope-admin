@@ -457,6 +457,8 @@ function defaultData(type: string): Record<string, any> {
         kb_id: '',
         query: '{{start.query}}',
         top_k: 4,
+        retrieval_method: '',
+        score_threshold: undefined,
       };
     }
 
@@ -1167,6 +1169,37 @@ onMounted(load);
                       :max="20"
                     />
                   </ElFormItem>
+                </PanelSection>
+                <PanelSection
+                  title="高级检索"
+                  icon="lucide:sliders-horizontal"
+                  :default-collapsed="true"
+                >
+                  <ElFormItem label="检索方式">
+                    <ElSelect
+                      v-model="selectedNode.data.retrieval_method"
+                      clearable
+                      placeholder="跟随知识库默认"
+                    >
+                      <ElOption label="关键词" value="keyword" />
+                      <ElOption label="向量" value="vector" />
+                      <ElOption label="语义知识图谱" value="knowledge_graph" />
+                      <ElOption label="混合" value="hybrid" />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem label="Score 阈值">
+                    <ElInputNumber
+                      v-model="selectedNode.data.score_threshold"
+                      :min="0"
+                      :max="1"
+                      :step="0.05"
+                      :precision="2"
+                      controls-position="right"
+                    />
+                  </ElFormItem>
+                  <p class="wf-hint">
+                    留空则沿用知识库自身配置；阈值用于过滤低相关度结果。
+                  </p>
                 </PanelSection>
               </template>
 

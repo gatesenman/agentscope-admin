@@ -227,6 +227,40 @@
 <li>选择/数值/布尔/密钥 → 下拉 / 步进 / 开关 / 凭证选择器</li>
 </ul>
 <p>复用组件见 <code>apps/web-ele/src/views/agentscope/components/</code>：<code>CodeEditor.vue</code>、<code>JsonEditor.vue</code>、<code>VarInput.vue</code>、<code>PanelSection.vue</code>。</p>
+<h2 id="dify-error-handling">节点错误处理与重试（对齐 Dify error-handling）</h2>
+<p>每个执行型节点都有「错误处理与重试」分组，可配置：</p>
+<ul>
+<li><strong>失败重试次数 / 重试间隔</strong>：节点抛错时按次数与间隔重跑。</li>
+<li><strong>重试用尽后的策略 <code>error_strategy</code></strong>：</li>
+<li><code>fail</code>（默认）：终止整个工作流并报错。</li>
+<li><code>default</code>：用配置的「默认输出值」兜底，流程继续往下跑。</li>
+<li><code>branch</code>：走该节点的 <code>fail</code> 失败分支（需在画布上连出失败边）。</li>
+</ul>
+<p>引擎实现见 <code>engine.py</code> 的 <code>_run()</code> 重试循环（包裹 <code>_dispatch_node()</code>）；运行抽屉会展示「重试中 / 出错」事件。三种策略均经真机验证。</p>
+<h2 id="llm-json-dify-openai-structured-output">LLM 节点结构化 JSON 输出（对齐 Dify / OpenAI structured output）</h2>
+<p>LLM 节点「输出」分组可切换输出格式：</p>
+<ul>
+<li><code>text</code>（默认）：输出纯文本，引用 <code>{{节点.text}}</code>。</li>
+<li><code>json</code>（结构化）：给出 JSON Schema 后，模型按约束输出；引擎用容错解析（<code>_parse_json_lenient</code>，兼容 <code>json</code> 围栏 / 前后缀噪声），解析结果挂在 <code>{{节点.json}}</code>，且字典的各字段提升到顶层可直接 <code>{{节点.字段名}}</code> 引用。解析失败时写 <code>error</code> 触发错误处理策略。</li>
+</ul>
+<p>真机验证：抽取 <code>{name:张三, age:28, city:上海, job:工程师}</code>，下游用 <code>{{llm.name}}</code> 等逐字段正确注入。</p>
+<h2 id="dify_1">工作流变量体系（对齐 Dify 三类变量）</h2>
+<p>工作流编辑器顶部「全局变量」可维护三类命名空间，变量选择器按 <code>sys / env / conversation</code> 分组展示：</p>
+<ul>
+<li><code>sys.*</code>：系统变量（只读），如 <code>sys.query</code>、<code>sys.files</code>，运行时由引擎注入。</li>
+<li><code>env.*</code>：环境变量（只读），保存在 <code>graph.env_variables</code>，用于密钥/常量等。</li>
+<li><code>conversation.*</code>：会话变量（可写），保存在 <code>graph.conversation_variables</code>，可被「变量赋值 <code>assigner</code>」节点写入，跨节点保持可变状态。</li>
+</ul>
+<p>引擎在运行/单节点调试前调用 <code>_seed_variable_namespaces()</code> 注入这三类命名空间。</p>
+<h2 id="dify-step-debug">单节点试运行 + 必填校验（Dify step-debug 体验）</h2>
+<ul>
+<li><strong>单节点试运行</strong>：配置面板点「试运行」打开调试抽屉，可单独运行某个节点而无需跑整图：</li>
+<li>「系统输入」区列出 <code>sys.*</code> 输入框。</li>
+<li>「上游变量（手动注入）」区<strong>图感知</strong>地预填上游节点输出字段骨架 JSON（例如下游 LLM 节点会预填 <code>start.query / ont.text / ont.objects / …</code>），手动填值即可。</li>
+<li>后端 <code>run_single(node_id, inputs, upstream)</code> 复用 <code>_dispatch_node()</code> 只执行该节点并经 SSE 回传执行日志 + 节点输出。</li>
+<li>端点：<code>POST /admin/workflows/{id}/run-node</code>；前端 <code>runWorkflowNode()</code>（<code>api/agentscope/workflow.ts</code>）。</li>
+<li><strong>必填项校验高亮</strong>：配置面板顶部按节点类型列出缺失的必填项（如 LLM 节点缺 <code>credential_id</code>/<code>model</code>），随配置变更实时重算（<code>missingFields</code> 计算属性 + <code>requiredFieldsFor()</code> 规则）。</li>
+</ul>
 <div class="page-footer">
   <span>AgentScope Admin · 静态 Wiki</span>
   <span>← <a href="05-agents.html">智能体与模型配置 Agents</a> &nbsp;|&nbsp; <a href="07-knowledge.html">知识库与流水线 Knowledge</a> →</span>

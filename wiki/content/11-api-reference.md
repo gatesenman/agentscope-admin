@@ -235,7 +235,8 @@
 | `GET` | `/admin/workflows/{workflow_id}` | Get Workflow |
 | `PATCH` | `/admin/workflows/{workflow_id}` | Update Workflow |
 | `DELETE` | `/admin/workflows/{workflow_id}` | Delete Workflow |
-| `POST` | `/admin/workflows/{workflow_id}/run` | Run Workflow |
+| `POST` | `/admin/workflows/{workflow_id}/run` | Run Workflow (SSE) |
+| `POST` | `/admin/workflows/{workflow_id}/run-node` | Run a single node in isolation (Dify step-debug, SSE) |
 
 ## 工作区 Workspace
 

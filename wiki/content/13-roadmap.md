@@ -9,6 +9,7 @@
 - 工作流编排（Dify 全节点 + 本体节点）、知识库 + 流水线编排 + 召回测试
 - 多智能体编排（6 模式）、发布（Web App / REST / 嵌入 + API Key）
 - MCP 服务器管理、人在环工具确认、可观测性 v1（用量/成本 + 执行链路 trace）、多租户/RBAC 骨架、定时任务
+- **工作流深化（第 4 阶段，对齐行业标准）**：节点错误处理+重试（Dify error-handling）、LLM 结构化 JSON 输出（Dify/OpenAI）、知识检索高级参数（Top-K / score 阈值 / 方式覆盖）、变量体系（sys/env/conversation）、单节点试运行 + 必填项校验（Dify step-debug 体验）
 
 ## P0（建议优先，性价比最高）
 
@@ -25,7 +26,7 @@
 - 工作区/沙箱（Docker/E2B，会话绑定 `workspace_id`）
 - 技能 Skills 页（`/workspace/skill`）、后台长任务监控（`/background-tasks`）
 - 限流/配额/成本上限、审计日志、评测/回归
-- 智能体版本管理与回滚、工作流变量体系（env/conversation/secret）
+- 智能体版本管理与回滚（工作流变量体系 env/conversation/sys 已完成）
 - Embedding 真实向量检索（现为 hash 向量 / TF-IDF）
 
 ## P2

@@ -16,12 +16,23 @@ from .models import (
     LinkType,
     ObjectInstance,
     ObjectType,
+    Ontology,
     PropertyType,
 )
 
 
 class OntologyError(Exception):
     """Raised on invalid ontology operations."""
+
+
+def _require_ontology(session: Session, ontology_id: str) -> None:
+    """Raise a clear error when ``ontology_id`` does not resolve.
+
+    Without this guard a stale/deleted ontology id silently degrades to a
+    misleading "Unknown object type" error, since the per-type lookup simply
+    finds nothing under the missing ontology."""
+    if not ontology_id or session.get(Ontology, ontology_id) is None:
+        raise OntologyError(f"Unknown ontology: {ontology_id!r}")
 
 
 def _invoke_connector(
@@ -147,6 +158,7 @@ def query_objects(
     are exact equality matches keyed by property api_name; ``search`` is a
     case-insensitive substring match across all string-valued properties.
     """
+    _require_ontology(session, ontology_id)
     obj_type = get_object_type_by_name(session, ontology_id, object_type_name)
     if obj_type is None:
         raise OntologyError(f"Unknown object type: {object_type_name!r}")
@@ -191,6 +203,7 @@ def traverse_link(
     source_object_id: str,
 ) -> dict[str, Any]:
     """Return the objects linked to ``source_object_id`` via a link type."""
+    _require_ontology(session, ontology_id)
     link_type = session.exec(
         select(LinkType).where(
             LinkType.ontology_id == ontology_id,
@@ -230,6 +243,7 @@ def execute_action(
     - ``CUSTOM``: records the invocation and returns the parameters (no-op
       mutation; intended for side-effects wired up by integrators).
     """
+    _require_ontology(session, ontology_id)
     action = session.exec(
         select(ActionType).where(
             ActionType.ontology_id == ontology_id,

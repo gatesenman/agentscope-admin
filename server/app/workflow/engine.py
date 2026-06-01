@@ -379,72 +379,19 @@ class WorkflowEngine:
             attempt = 0
             while True:
                 try:
-                    output = {}
-                    if ntype in {"start", "trigger-webhook", "trigger-schedule", "trigger-plugin"}:
-                        output = dict(inputs)
-                        self.context["start"] = dict(inputs)
-                        for k, v in inputs.items():
-                            self.context.setdefault(k, v)
-                    elif ntype == "llm":
-                        async for frame, text in self._run_llm(nid, data):
-                            if frame:
-                                yield frame
-                            output["text"] = text
-                        if data.get("output_format") == "json":
-                            parsed = _parse_json_lenient(output.get("text", ""))
-                            output["json"] = parsed
-                            if isinstance(parsed, dict):
-                                for k, v in parsed.items():
-                                    output.setdefault(k, v)
-                            elif parsed is None:
-                                output["error"] = "LLM 未返回合法 JSON"
-                    elif ntype == "agent":
-                        async for frame, text in self._run_agent(nid, data):
-                            if frame:
-                                yield frame
-                            output["text"] = text
-                    elif ntype == "knowledge":
-                        output = self._run_knowledge(data)
-                    elif ntype == "ontology":
-                        output = self._run_ontology(data)
-                    elif ntype == "template":
-                        output = {"text": _resolve(data.get("template", ""), self.context)}
-                    elif ntype == "condition":
-                        chosen = self._eval_condition(data)
-                        branch[nid] = chosen
-                        output = {"branch": chosen}
-                    elif ntype == "question-classifier":
-                        chosen, output = await self._run_classifier(data)
-                        branch[nid] = chosen
-                    elif ntype == "parameter-extractor":
-                        output = await self._run_parameter_extractor(data)
-                    elif ntype == "code":
-                        output = self._run_code(data)
-                    elif ntype == "http-request":
-                        output = await self._run_http(data)
-                    elif ntype == "tool":
-                        output = await self._run_tool(data)
-                    elif ntype == "list-operator":
-                        output = self._run_list_operator(data)
-                    elif ntype == "iteration":
-                        output = self._run_iteration(data)
-                    elif ntype == "loop":
-                        output = self._run_loop(data)
-                    elif ntype == "variable-aggregator":
-                        output = self._run_variable_aggregator(data)
-                    elif ntype == "assigner":
-                        output = self._run_assigner(data)
-                    elif ntype == "document-extractor":
-                        output = self._run_document_extractor(data)
-                    elif ntype == "datasource":
-                        output = self._run_datasource(data)
-                    elif ntype == "knowledge-index":
-                        output = self._run_knowledge_index(data)
-                    elif ntype == "human-input":
-                        output = self._run_human_input(data)
-                    elif ntype in {"answer", "end"}:
-                        output = {"text": _resolve(data.get("answer", ""), self.context)}
-                        final_answer = output["text"]
+                    state: dict[str, Any] = {}
+                    async for frame in self._dispatch_node(
+                        nid,
+                        ntype,
+                        data,
+                        inputs,
+                        branch,
+                        state,
+                    ):
+                        yield frame
+                    output = state.get("output") or {}
+                    if "final_answer" in state:
+                        final_answer = state["final_answer"]
                     if isinstance(output, dict) and output.get("error"):
                         # A runner reported a failure via its output dict; route
                         # it through the same retry / error-strategy handling.
@@ -514,6 +461,134 @@ class WorkflowEngine:
                 reachable.add(e["target"])
 
         yield _event({"type": "workflow_finished", "output": final_answer})
+
+    async def _dispatch_node(
+        self,
+        nid: str,
+        ntype: str,
+        data: dict[str, Any],
+        inputs: dict[str, Any],
+        branch: dict[str, str],
+        state: dict[str, Any],
+    ) -> AsyncGenerator[str, None]:
+        """Execute a single node's logic once (no retry / error policy).
+
+        Yields any streaming SSE frames the runner produces and writes the
+        resulting output dict to ``state['output']``; answer/end nodes also
+        record ``state['final_answer']``. Shared by the full-graph runner
+        (``_run``) and the single-node debugger (``run_single``)."""
+        output: dict[str, Any] = {}
+        if ntype in {"start", "trigger-webhook", "trigger-schedule", "trigger-plugin"}:
+            output = dict(inputs)
+            self.context["start"] = dict(inputs)
+            for k, v in inputs.items():
+                self.context.setdefault(k, v)
+        elif ntype == "llm":
+            async for frame, text in self._run_llm(nid, data):
+                if frame:
+                    yield frame
+                output["text"] = text
+            if data.get("output_format") == "json":
+                parsed = _parse_json_lenient(output.get("text", ""))
+                output["json"] = parsed
+                if isinstance(parsed, dict):
+                    for k, v in parsed.items():
+                        output.setdefault(k, v)
+                elif parsed is None:
+                    output["error"] = "LLM 未返回合法 JSON"
+        elif ntype == "agent":
+            async for frame, text in self._run_agent(nid, data):
+                if frame:
+                    yield frame
+                output["text"] = text
+        elif ntype == "knowledge":
+            output = self._run_knowledge(data)
+        elif ntype == "ontology":
+            output = self._run_ontology(data)
+        elif ntype == "template":
+            output = {"text": _resolve(data.get("template", ""), self.context)}
+        elif ntype == "condition":
+            chosen = self._eval_condition(data)
+            branch[nid] = chosen
+            output = {"branch": chosen}
+        elif ntype == "question-classifier":
+            chosen, output = await self._run_classifier(data)
+            branch[nid] = chosen
+        elif ntype == "parameter-extractor":
+            output = await self._run_parameter_extractor(data)
+        elif ntype == "code":
+            output = self._run_code(data)
+        elif ntype == "http-request":
+            output = await self._run_http(data)
+        elif ntype == "tool":
+            output = await self._run_tool(data)
+        elif ntype == "list-operator":
+            output = self._run_list_operator(data)
+        elif ntype == "iteration":
+            output = self._run_iteration(data)
+        elif ntype == "loop":
+            output = self._run_loop(data)
+        elif ntype == "variable-aggregator":
+            output = self._run_variable_aggregator(data)
+        elif ntype == "assigner":
+            output = self._run_assigner(data)
+        elif ntype == "document-extractor":
+            output = self._run_document_extractor(data)
+        elif ntype == "datasource":
+            output = self._run_datasource(data)
+        elif ntype == "knowledge-index":
+            output = self._run_knowledge_index(data)
+        elif ntype == "human-input":
+            output = self._run_human_input(data)
+        elif ntype in {"answer", "end"}:
+            output = {"text": _resolve(data.get("answer", ""), self.context)}
+            state["final_answer"] = output["text"]
+        state["output"] = output
+
+    async def run_single(
+        self,
+        node_id: str,
+        inputs: dict[str, Any],
+        upstream: dict[str, Any] | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """Run exactly one node in isolation (Dify-style single-step debug).
+
+        ``inputs`` seeds the ``sys`` / ``start`` namespaces; ``upstream``
+        supplies manual values for any ``{{<node>.<field>}}`` references the
+        node uses, so a node can be tried without running the whole graph."""
+        yield _event({"type": "workflow_started", "single": True})
+        node = self.nodes.get(node_id)
+        if node is None:
+            yield _event({"type": "error", "message": f"Unknown node: {node_id}"})
+            return
+        self._seed_variable_namespaces(inputs)
+        self.context["start"] = dict(inputs)
+        for k, v in inputs.items():
+            self.context.setdefault(k, v)
+        if isinstance(upstream, dict):
+            for k, v in upstream.items():
+                self.context[k] = v
+        ntype = node.get("type", "")
+        data = node.get("data", {})
+        title = data.get("title") or ntype
+        yield _event(
+            {"type": "node_started", "node_id": node_id, "node_type": ntype, "title": title},
+        )
+        branch: dict[str, str] = {}
+        state: dict[str, Any] = {}
+        try:
+            async for frame in self._dispatch_node(node_id, ntype, data, inputs, branch, state):
+                yield frame
+        except Exception as exc:  # noqa: BLE001 - surface single-node failures
+            yield _event({"type": "error", "node_id": node_id, "message": str(exc)})
+            return
+        output = state.get("output") or {}
+        self.context[node_id] = output
+        yield _event({"type": "node_finished", "node_id": node_id, "output": output})
+        final = state.get("final_answer")
+        if final is None and isinstance(output, dict):
+            final = output.get("text", "")
+        yield _event({"type": "workflow_finished", "output": final or ""})
 
     # ----- node runners --------------------------------------------------- #
     async def _run_llm(

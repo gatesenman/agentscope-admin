@@ -37,6 +37,14 @@ class RunIn(BaseModel):
     inputs: dict[str, Any] = Field(default_factory=dict)
 
 
+class RunNodeIn(BaseModel):
+    node_id: str
+    inputs: dict[str, Any] = Field(default_factory=dict)
+    # Manual values for upstream ``{{<node>.<field>}}`` references, keyed by
+    # the source node id (e.g. ``{"code1": {"result": [1, 2]}}``).
+    upstream: dict[str, Any] = Field(default_factory=dict)
+
+
 @router.get("/")
 def list_workflows(session: Session = Depends(get_session)) -> dict:
     rows = list(session.exec(select(Workflow)))
@@ -101,6 +109,25 @@ async def run_workflow(
     engine = WorkflowEngine(wf.graph, session, user_id=x_user_id, workflow_id=workflow_id)
     return StreamingResponse(
         engine.run(body.inputs),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.post("/{workflow_id}/run-node")
+async def run_workflow_node(
+    workflow_id: str,
+    body: RunNodeIn,
+    session: Session = Depends(get_session),
+    x_user_id: str = Header(default="admin"),
+) -> StreamingResponse:
+    """Run a single node in isolation (Dify-style single-step debug)."""
+    wf = session.get(Workflow, workflow_id)
+    if wf is None:
+        raise HTTPException(status_code=404, detail="Workflow not found.")
+    engine = WorkflowEngine(wf.graph, session, user_id=x_user_id, workflow_id=workflow_id)
+    return StreamingResponse(
+        engine.run_single(body.node_id, body.inputs, body.upstream),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

@@ -96,18 +96,11 @@ function apiBaseUrl(): string {
     : `${globalThis.location?.origin ?? ''}${apiURL}`;
 }
 
-/** Run a workflow, invoking `onEvent` for every streamed SSE event. */
-export async function runWorkflow(options: RunWorkflowOptions): Promise<void> {
-  const { id, inputs, onEvent, signal } = options;
-  const response = await fetch(`${apiBaseUrl()}/admin/workflows/${id}/run`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-User-ID': getAgentScopeUserId(),
-    },
-    body: JSON.stringify({ inputs }),
-    signal,
-  });
+/** Consume an SSE `text/event-stream` response, invoking `onEvent` per frame. */
+async function consumeSse(
+  response: Response,
+  onEvent: (event: WorkflowRunEvent) => void,
+): Promise<void> {
   if (!response.ok || !response.body) {
     throw new Error(`Workflow run failed: ${response.status}`);
   }
@@ -132,4 +125,52 @@ export async function runWorkflow(options: RunWorkflowOptions): Promise<void> {
       index = buffer.indexOf('\n\n');
     }
   }
+}
+
+/** Run a workflow, invoking `onEvent` for every streamed SSE event. */
+export async function runWorkflow(options: RunWorkflowOptions): Promise<void> {
+  const { id, inputs, onEvent, signal } = options;
+  const response = await fetch(`${apiBaseUrl()}/admin/workflows/${id}/run`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-ID': getAgentScopeUserId(),
+    },
+    body: JSON.stringify({ inputs }),
+    signal,
+  });
+  await consumeSse(response, onEvent);
+}
+
+export interface RunWorkflowNodeOptions {
+  id: string;
+  nodeId: string;
+  inputs: Record<string, any>;
+  upstream?: Record<string, any>;
+  onEvent: (event: WorkflowRunEvent) => void;
+  signal?: AbortSignal;
+}
+
+/** Run a single node in isolation (Dify-style single-step debug). */
+export async function runWorkflowNode(
+  options: RunWorkflowNodeOptions,
+): Promise<void> {
+  const { id, nodeId, inputs, upstream, onEvent, signal } = options;
+  const response = await fetch(
+    `${apiBaseUrl()}/admin/workflows/${id}/run-node`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-ID': getAgentScopeUserId(),
+      },
+      body: JSON.stringify({
+        node_id: nodeId,
+        inputs,
+        upstream: upstream ?? {},
+      }),
+      signal,
+    },
+  );
+  await consumeSse(response, onEvent);
 }

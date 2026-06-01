@@ -16,6 +16,7 @@ import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
 import { useVueFlow, VueFlow } from '@vue-flow/core';
 import {
+  ElAlert,
   ElButton,
   ElCard,
   ElDrawer,
@@ -1022,6 +1023,171 @@ async function doRun() {
   }
 }
 
+// ---- Required-field validation (highlight missing config) ----
+interface FieldReq {
+  field: string;
+  label: string;
+}
+
+// Per-node-type required config fields, surfaced as inline warnings.
+function requiredFieldsFor(type: string, data: any): FieldReq[] {
+  switch (type) {
+    case 'agent': {
+      return [{ field: 'agent_id', label: '智能体' }];
+    }
+    case 'answer':
+    case 'end': {
+      return [{ field: 'answer', label: '回复内容' }];
+    }
+    case 'code': {
+      return [{ field: 'code', label: '代码' }];
+    }
+    case 'http-request': {
+      return [{ field: 'url', label: 'URL' }];
+    }
+    case 'knowledge': {
+      return [{ field: 'kb_id', label: '知识库' }];
+    }
+    case 'llm': {
+      return [
+        { field: 'credential_id', label: '模型凭证' },
+        { field: 'model', label: '模型' },
+        { field: 'prompt', label: '用户提示词' },
+      ];
+    }
+    case 'ontology': {
+      const reqs: FieldReq[] = [{ field: 'ontology_id', label: '本体' }];
+      switch (data?.operation) {
+        case 'execute_action': {
+          reqs.push({ field: 'action', label: '动作' });
+          break;
+        }
+        case 'query': {
+          reqs.push({ field: 'object_type', label: '对象类型' });
+          break;
+        }
+        case 'traverse': {
+          reqs.push(
+            { field: 'link_type', label: '关系类型' },
+            { field: 'source_object_id', label: '源对象 ID' },
+          );
+          break;
+        }
+        // No default
+      }
+      return reqs;
+    }
+    case 'template': {
+      return [{ field: 'template', label: '模板' }];
+    }
+    case 'tool': {
+      return [{ field: 'tool', label: '工具' }];
+    }
+    default: {
+      return [];
+    }
+  }
+}
+
+function isEmptyVal(v: any): boolean {
+  return (
+    v === undefined || v === null || (typeof v === 'string' && v.trim() === '')
+  );
+}
+
+// Required fields on the selected node that are still empty.
+const missingFields = computed<FieldReq[]>(() => {
+  const node = selectedNode.value;
+  if (!node) return [];
+  return requiredFieldsFor(node.type, node.data).filter((r) =>
+    isEmptyVal(node.data?.[r.field]),
+  );
+});
+
+// ---- Single-node test run (Dify-style step debug) ----
+const nodeTestDrawer = ref(false);
+const nodeTesting = ref(false);
+const nodeTestInputs = ref<Record<string, any>>({});
+const nodeTestUpstream = ref('');
+const nodeTestLog = ref<{ detail?: string; text: string; type: string }[]>([]);
+const nodeTestOutput = ref('');
+const nodeTestNodeLabel = ref('');
+
+// Upstream node ids (excluding the built-in sys/env/conversation scopes)
+// that feed the selected node — used to pre-seed the manual-value skeleton.
+function upstreamNodeGroups(): VarGroup[] {
+  const builtin = new Set(['conversation', 'env', 'sys']);
+  return upstreamVars.value.filter((g) => !builtin.has(g.node));
+}
+
+function openNodeTest() {
+  const node = selectedNode.value;
+  if (!node) return;
+  nodeTestNodeLabel.value = node.data?.title || node.type;
+  nodeTestInputs.value = {};
+  for (const v of startVariables.value) nodeTestInputs.value[v.name] = '';
+  const skeleton: Record<string, any> = {};
+  for (const g of upstreamNodeGroups()) {
+    skeleton[g.node] = Object.fromEntries(g.fields.map((f) => [f, '']));
+  }
+  nodeTestUpstream.value =
+    Object.keys(skeleton).length > 0 ? JSON.stringify(skeleton, null, 2) : '';
+  nodeTestLog.value = [];
+  nodeTestOutput.value = '';
+  nodeTestDrawer.value = true;
+}
+
+async function doNodeTest() {
+  const node = selectedNode.value;
+  if (!node) return;
+  let upstream: Record<string, any> = {};
+  if (nodeTestUpstream.value.trim()) {
+    try {
+      upstream = JSON.parse(nodeTestUpstream.value);
+    } catch {
+      ElMessage.error('上游变量 JSON 格式不正确');
+      return;
+    }
+  }
+  await save();
+  nodeTesting.value = true;
+  nodeTestLog.value = [];
+  nodeTestOutput.value = '';
+  try {
+    await workflowApi.runWorkflowNode({
+      id: workflowId,
+      nodeId: node.id,
+      inputs: { ...nodeTestInputs.value },
+      upstream,
+      onEvent: (ev: WorkflowRunEvent) => {
+        switch (ev.type) {
+          case 'error': {
+            nodeTestLog.value.push({
+              type: 'error',
+              text: ev.message ?? 'error',
+            });
+            break;
+          }
+          case 'node_finished': {
+            nodeTestOutput.value = previewOutput(ev.output);
+            nodeTestLog.value.push({ type: 'done', text: '节点完成' });
+            break;
+          }
+          case 'text_delta': {
+            nodeTestOutput.value += ev.delta ?? '';
+            break;
+          }
+          // No default
+        }
+      },
+    });
+  } catch (error: any) {
+    ElMessage.error(error?.message ?? 'run failed');
+  } finally {
+    nodeTesting.value = false;
+  }
+}
+
 onMounted(load);
 </script>
 
@@ -1095,6 +1261,18 @@ onMounted(load);
           <div v-else style="padding: 12px">
             <div class="wf-config__head">
               <ElTag>{{ selectedNode.type }}</ElTag>
+              <div style="flex: 1"></div>
+              <ElButton
+                v-if="selectedNode.type !== 'start'"
+                size="small"
+                @click="openNodeTest"
+              >
+                <IconifyIcon
+                  icon="lucide:flask-conical"
+                  style="margin-right: 4px"
+                />
+                试运行
+              </ElButton>
               <ElButton
                 v-if="selectedNode.type !== 'start'"
                 link
@@ -1104,6 +1282,14 @@ onMounted(load);
                 {{ $t('agentscope.common.delete') }}
               </ElButton>
             </div>
+            <ElAlert
+              v-if="missingFields.length > 0"
+              type="warning"
+              :closable="false"
+              show-icon
+              style="margin-bottom: 10px"
+              :title="`待填写：${missingFields.map((f) => f.label).join('、')}`"
+            />
             <ElForm label-position="top">
               <PanelSection title="基本" icon="lucide:tag">
                 <ElFormItem :label="$t('agentscope.workflow.nodeTitle')">
@@ -2193,6 +2379,84 @@ onMounted(load);
         :header="$t('agentscope.workflow.answer')"
       >
         <div style="white-space: pre-wrap">{{ runAnswer }}</div>
+      </ElCard>
+    </ElDrawer>
+
+    <!-- Single-node test run (Dify-style step debug) -->
+    <ElDrawer v-model="nodeTestDrawer" size="520px">
+      <template #header>
+        <div style="display: flex; gap: 8px; align-items: center">
+          <IconifyIcon icon="lucide:flask-conical" />
+          <span>试运行：{{ nodeTestNodeLabel }}</span>
+        </div>
+      </template>
+      <ElForm label-position="top">
+        <PanelSection title="系统输入" icon="lucide:log-in">
+          <ElFormItem
+            v-for="v in startVariables"
+            :key="v.name"
+            :label="`sys.${v.name}`"
+          >
+            <ElInput
+              v-model="nodeTestInputs[v.name]"
+              type="textarea"
+              :rows="2"
+            />
+          </ElFormItem>
+        </PanelSection>
+        <PanelSection title="上游变量（手动注入）" icon="lucide:braces">
+          <p class="wf-varhint">
+            为本节点引用的上游变量提供测试值（JSON），无需运行整图。
+          </p>
+          <ElInput
+            v-model="nodeTestUpstream"
+            type="textarea"
+            :rows="6"
+            placeholder="{}"
+            style="font-family: monospace"
+          />
+        </PanelSection>
+        <ElButton type="primary" :loading="nodeTesting" @click="doNodeTest">
+          运行此节点
+        </ElButton>
+      </ElForm>
+
+      <ElCard
+        v-if="nodeTestLog.length > 0"
+        shadow="never"
+        style="margin-top: 16px"
+        header="执行日志"
+      >
+        <div
+          v-for="(l, i) in nodeTestLog"
+          :key="i"
+          :style="{
+            color: l.type === 'error' ? '#ef4444' : undefined,
+            fontFamily: 'monospace',
+            fontSize: '12px',
+            lineHeight: 1.8,
+          }"
+        >
+          {{ l.text }}
+        </div>
+      </ElCard>
+
+      <ElCard
+        v-if="nodeTestOutput"
+        shadow="never"
+        style="margin-top: 16px"
+        header="节点输出"
+      >
+        <div
+          style="
+            font-family: monospace;
+            font-size: 12px;
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
+          "
+        >
+          {{ nodeTestOutput }}
+        </div>
       </ElCard>
     </ElDrawer>
 

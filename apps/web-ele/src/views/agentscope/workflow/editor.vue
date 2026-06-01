@@ -258,6 +258,21 @@ function nodeOutputFields(type: string, data?: any): string[] {
     case 'list-operator': {
       return ['result', 'text'];
     }
+    case 'llm': {
+      if (data?.output_format === 'json') {
+        let keys: string[] = [];
+        try {
+          const parsed = JSON.parse(data?.json_schema || '{}');
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            keys = Object.keys(parsed);
+          }
+        } catch {
+          // schema not valid JSON yet; expose only json + text.
+        }
+        return ['text', 'json', ...keys];
+      }
+      return ['text'];
+    }
     case 'ontology': {
       return ['text', 'objects'];
     }
@@ -470,6 +485,8 @@ function defaultData(type: string): Record<string, any> {
         credential_id: '',
         model: '',
         parameters: {},
+        output_format: 'text',
+        json_schema: '',
       };
     }
 
@@ -1071,6 +1088,32 @@ onMounted(load);
                       :variables="upstreamVars"
                     />
                   </ElFormItem>
+                </PanelSection>
+                <PanelSection title="输出" icon="lucide:braces">
+                  <ElFormItem label="输出格式">
+                    <ElSelect v-model="selectedNode.data.output_format">
+                      <ElOption label="文本 (text)" value="text" />
+                      <ElOption label="结构化 JSON" value="json" />
+                    </ElSelect>
+                  </ElFormItem>
+                  <ElFormItem
+                    v-if="selectedNode.data.output_format === 'json'"
+                    label="JSON 结构 / 示例"
+                  >
+                    <JsonEditor
+                      v-model="selectedNode.data.json_schema"
+                      :min-height="140"
+                    />
+                  </ElFormItem>
+                  <p
+                    v-if="selectedNode.data.output_format === 'json'"
+                    class="wf-hint"
+                  >
+                    模型将被要求输出 JSON。各字段可按
+                    <code v-pre>{{ 节点.字段名 }}</code>
+                    引用；整体对象为
+                    <code v-pre>{{ 节点.json }}</code>
+                  </p>
                 </PanelSection>
               </template>
 

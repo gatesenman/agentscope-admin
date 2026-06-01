@@ -94,6 +94,27 @@ class _NodeFailure(Exception):
     error-dict outputs uniformly."""
 
 
+def _parse_json_lenient(text: str) -> Any:
+    """Best-effort parse of an LLM text response into JSON.
+
+    Strips ``` fences and, if direct parsing fails, extracts the first
+    balanced ``{...}`` / ``[...]`` span. Returns ``None`` on failure."""
+    s = (text or "").strip()
+    if s.startswith("```"):
+        s = re.sub(r"^```[a-zA-Z]*\n?", "", s)
+        s = re.sub(r"\n?```$", "", s).strip()
+    try:
+        return json.loads(s)
+    except (ValueError, TypeError):
+        match = re.search(r"(\{.*\}|\[.*\])", s, re.S)
+        if match:
+            try:
+                return json.loads(match.group(1))
+            except (ValueError, TypeError):
+                return None
+        return None
+
+
 def _node_default_output(err_cfg: dict[str, Any]) -> dict[str, Any]:
     """Build a node's fallback output when its error strategy is ``default``.
 
@@ -303,6 +324,14 @@ class WorkflowEngine:
                             if frame:
                                 yield frame
                             output["text"] = text
+                        if data.get("output_format") == "json":
+                            parsed = _parse_json_lenient(output.get("text", ""))
+                            output["json"] = parsed
+                            if isinstance(parsed, dict):
+                                for k, v in parsed.items():
+                                    output.setdefault(k, v)
+                            elif parsed is None:
+                                output["error"] = "LLM 未返回合法 JSON"
                     elif ntype == "agent":
                         async for frame, text in self._run_agent(nid, data):
                             if frame:
@@ -436,6 +465,14 @@ class WorkflowEngine:
         if system:
             messages.append(
                 Msg(name="system", role="system", content=[{"type": "text", "text": system}]),
+            )
+        if data.get("output_format") == "json":
+            schema = _resolve(data.get("json_schema", ""), self.context).strip()
+            instr = "你必须只输出一个合法的 JSON 对象，不要包含任何解释文字或 markdown 代码块标记。"
+            if schema:
+                instr += f"\n输出需符合以下 JSON 结构/示例：\n{schema}"
+            messages.append(
+                Msg(name="system", role="system", content=[{"type": "text", "text": instr}]),
             )
         messages.append(
             Msg(name="user", role="user", content=[{"type": "text", "text": prompt}]),

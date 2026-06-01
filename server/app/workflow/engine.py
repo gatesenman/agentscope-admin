@@ -14,6 +14,7 @@ import asyncio
 import json
 import operator as _op
 import re
+import uuid
 from collections import deque
 from typing import Any, AsyncGenerator
 
@@ -136,6 +137,36 @@ def _node_default_output(err_cfg: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _coerce_var_list(raw: Any) -> dict[str, Any]:
+    """Turn a workflow-scoped variable list into a ``name -> value`` dict.
+
+    Accepts the editor's ``[{name, value, type}]`` shape (and tolerates a
+    plain dict). ``number`` typed entries are coerced to float/int and
+    ``json`` typed entries are parsed; everything else is kept as-is."""
+    if isinstance(raw, dict):
+        return dict(raw)
+    out: dict[str, Any] = {}
+    for item in raw or []:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        if not name:
+            continue
+        value = item.get("value")
+        vtype = (item.get("type") or "string").lower()
+        if vtype == "number" and isinstance(value, str) and value.strip():
+            try:
+                value = int(value) if value.strip().lstrip("-").isdigit() else float(value)
+            except ValueError:
+                pass
+        elif vtype in {"json", "object", "array"} and isinstance(value, str) and value.strip():
+            parsed = _parse_json_lenient(value)
+            if parsed is not None:
+                value = parsed
+        out[str(name)] = value
+    return out
+
+
 def _traverse(cur: Any, parts: list[str]) -> Any:
     """Walk a dotted path over nested dicts/lists. Supports integer list
     indices (e.g. ``items.0.id``). Returns ``_MISSING`` if any step fails."""
@@ -250,11 +281,26 @@ def _topo_order(nodes: list[dict], edges: list[dict]) -> list[str]:
 class WorkflowEngine:
     """Executes one workflow graph against a set of start inputs."""
 
-    def __init__(self, graph: dict[str, Any], session: Session, user_id: str = "admin"):
+    def __init__(
+        self,
+        graph: dict[str, Any],
+        session: Session,
+        user_id: str = "admin",
+        workflow_id: str = "",
+    ):
         self.nodes: dict[str, dict] = {n["id"]: n for n in graph.get("nodes", [])}
         self.edges: list[dict] = graph.get("edges", [])
         self.session = session
         self.user_id = user_id
+        self.workflow_id = workflow_id
+        self.run_id = uuid.uuid4().hex
+        # Workflow-scoped variable definitions (Dify-style): environment
+        # variables (read-only config/secrets) and conversation variables
+        # (mutable state carried across the run, writable by the assigner).
+        self.env_vars: dict[str, Any] = _coerce_var_list(graph.get("environment_variables"))
+        self.conversation_vars: dict[str, Any] = _coerce_var_list(
+            graph.get("conversation_variables"),
+        )
         self.context: dict[str, Any] = {}
         # Outgoing edges grouped by source node.
         self.out_edges: dict[str, list[dict]] = {}
@@ -269,7 +315,27 @@ class WorkflowEngine:
         except Exception as exc:  # noqa: BLE001 - report failures to the client
             yield _event({"type": "error", "message": str(exc)})
 
+    def _seed_variable_namespaces(self, inputs: dict[str, Any]) -> None:
+        """Populate the ``sys`` / ``env`` / ``conversation`` namespaces.
+
+        Mirrors Dify's three built-in variable scopes so templates can use
+        ``{{sys.query}}``, ``{{env.NAME}}`` and ``{{conversation.NAME}}``
+        regardless of how the start node is wired.
+        """
+        self.context["sys"] = {
+            "query": inputs.get("query", ""),
+            "files": inputs.get("files", []),
+            "user_id": self.user_id,
+            "workflow_id": self.workflow_id,
+            "workflow_run_id": self.run_id,
+        }
+        # env vars are read-only; conversation vars start at their declared
+        # defaults and may be mutated by the assigner node during the run.
+        self.context["env"] = dict(self.env_vars)
+        self.context["conversation"] = dict(self.conversation_vars)
+
     async def _run(self, inputs: dict[str, Any]) -> AsyncGenerator[str, None]:
+        self._seed_variable_namespaces(inputs)
         order = _topo_order(list(self.nodes.values()), self.edges)
         reachable: set[str] = set()
         # Branch chosen by each condition node: maps node_id -> "true"/"false".
@@ -971,7 +1037,16 @@ class WorkflowEngine:
                 value = _resolve(raw, self.context)
             else:
                 value = raw
-            self.context[name] = value
+            # Writing ``conversation.<var>`` updates the mutable conversation
+            # namespace (Dify-style); anything else lands at the top level so
+            # ``{{assign.<var>}}`` and bare ``{{<var>}}`` both resolve.
+            if name.startswith("conversation."):
+                key = name.split(".", 1)[1]
+                conv = self.context.setdefault("conversation", {})
+                if isinstance(conv, dict):
+                    conv[key] = value
+            else:
+                self.context[name] = value
             assigned[name] = value
         out: dict[str, Any] = {
             "assigned": assigned,

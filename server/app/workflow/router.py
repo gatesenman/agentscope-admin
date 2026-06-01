@@ -98,7 +98,7 @@ async def run_workflow(
     wf = session.get(Workflow, workflow_id)
     if wf is None:
         raise HTTPException(status_code=404, detail="Workflow not found.")
-    engine = WorkflowEngine(wf.graph, session, user_id=x_user_id)
+    engine = WorkflowEngine(wf.graph, session, user_id=x_user_id, workflow_id=workflow_id)
     return StreamingResponse(
         engine.run(body.inputs),
         media_type="text/event-stream",

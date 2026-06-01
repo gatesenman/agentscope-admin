@@ -200,6 +200,33 @@ const wf = ref<null | Workflow>(null);
 const initialNodes = ref<any[]>([]);
 const initialEdges = ref<any[]>([]);
 
+// ---- Workflow-scoped variables (Dify-style global variable system) ----
+interface WfVar {
+  description?: string;
+  name: string;
+  type: string;
+  value: string;
+}
+// Read-only config / secrets, referenced as {{env.NAME}}.
+const environmentVariables = ref<WfVar[]>([]);
+// Mutable state carried across the run (writable by the assigner via
+// `conversation.NAME`), referenced as {{conversation.NAME}}.
+const conversationVariables = ref<WfVar[]>([]);
+const varsDrawer = ref(false);
+// Literal `{{...}}` reference hints (kept as constants so the mustache
+// parser doesn't choke on nested braces in the template).
+const sysRefHint = '{{sys.字段}}';
+const envRefHint = '{{env.名称}}';
+const convRefHint = '{{conversation.名称}}';
+// Built-in system variable references shown as read-only tags in the drawer.
+const sysVarRefs = [
+  'sys.query',
+  'sys.files',
+  'sys.user_id',
+  'sys.workflow_id',
+  'sys.workflow_run_id',
+];
+
 // Reference data for node config selects.
 const agents = ref<AgentRecord[]>([]);
 const credentials = ref<CredentialRecord[]>([]);
@@ -371,6 +398,29 @@ const upstreamVars = computed<VarGroup[]>(() => {
     if (!n) continue;
     groups.push({ node: id, fields: nodeOutputFields(n.type, n.data) });
   }
+  // Always append the Dify-style built-in variable scopes so they can be
+  // referenced from any node regardless of graph wiring.
+  return [...groups, ...globalVars.value];
+});
+
+// Built-in variable scopes: system (sys.*), environment (env.*) and
+// conversation (conversation.*) variables, surfaced in every VarInput.
+const globalVars = computed<VarGroup[]>(() => {
+  const groups: VarGroup[] = [
+    {
+      node: 'sys',
+      fields: ['query', 'files', 'user_id', 'workflow_id', 'workflow_run_id'],
+    },
+  ];
+  const envNames = environmentVariables.value
+    .map((v) => v.name)
+    .filter(Boolean);
+  if (envNames.length > 0) groups.push({ node: 'env', fields: envNames });
+  const convNames = conversationVariables.value
+    .map((v) => v.name)
+    .filter(Boolean);
+  if (convNames.length > 0)
+    groups.push({ node: 'conversation', fields: convNames });
   return groups;
 });
 
@@ -744,6 +794,10 @@ async function load() {
   credentials.value = cr.credentials ?? [];
   kbs.value = kb.items ?? [];
   ontologies.value = ont.items ?? [];
+  environmentVariables.value = ((w.graph as any)?.environment_variables ??
+    []) as WfVar[];
+  conversationVariables.value = ((w.graph as any)?.conversation_variables ??
+    []) as WfVar[];
   initialNodes.value = (w.graph.nodes ?? []).map((n, i) => ({
     id: n.id,
     type: n.type,
@@ -799,6 +853,28 @@ function deleteSelected() {
   selectedId.value = '';
 }
 
+// ---- Global variable management (env / conversation) ----
+function addEnvVar() {
+  environmentVariables.value.push({
+    name: `env_var_${environmentVariables.value.length + 1}`,
+    value: '',
+    type: 'string',
+  });
+}
+function removeEnvVar(i: number) {
+  environmentVariables.value.splice(i, 1);
+}
+function addConvVar() {
+  conversationVariables.value.push({
+    name: `var_${conversationVariables.value.length + 1}`,
+    value: '',
+    type: 'string',
+  });
+}
+function removeConvVar(i: number) {
+  conversationVariables.value.splice(i, 1);
+}
+
 async function save() {
   const obj = toObject();
   const graph = {
@@ -814,6 +890,8 @@ async function save() {
       target: e.target,
       sourceHandle: e.sourceHandle ?? null,
     })),
+    environment_variables: environmentVariables.value.filter((v) => v.name),
+    conversation_variables: conversationVariables.value.filter((v) => v.name),
   };
   saving.value = true;
   try {
@@ -956,6 +1034,10 @@ onMounted(load);
       </ElButton>
       <ElInput v-if="wf" v-model="wf.name" size="small" style="width: 240px" />
       <div style="flex: 1"></div>
+      <ElButton @click="varsDrawer = true">
+        <IconifyIcon icon="lucide:braces" style="margin-right: 4px" />
+        全局变量
+      </ElButton>
       <ElButton :loading="saving" @click="save">
         {{ $t('agentscope.common.save') }}
       </ElButton>
@@ -2113,6 +2195,87 @@ onMounted(load);
         <div style="white-space: pre-wrap">{{ runAnswer }}</div>
       </ElCard>
     </ElDrawer>
+
+    <!-- Global variables: environment + conversation (Dify-style) -->
+    <ElDrawer v-model="varsDrawer" title="全局变量" size="560px">
+      <div class="wf-vars">
+        <PanelSection title="系统变量（只读）" icon="lucide:cpu">
+          <p class="wf-varhint">
+            运行时自动注入，可在任意节点用 <code>{{ sysRefHint }}</code>
+            引用。
+          </p>
+          <div class="wf-vars__sys">
+            <ElTag v-for="f in sysVarRefs" :key="f" type="info" effect="plain">
+              {{ f }}
+            </ElTag>
+          </div>
+        </PanelSection>
+
+        <PanelSection title="环境变量" icon="lucide:settings-2">
+          <p class="wf-varhint">
+            只读配置 / 密钥，按 <code>{{ envRefHint }}</code>
+            引用（密钥型在面板内以密码框遮罩）。
+          </p>
+          <div
+            v-for="(v, i) in environmentVariables"
+            :key="`env-${i}`"
+            class="wf-vars__row"
+          >
+            <ElInput v-model="v.name" placeholder="名称" style="width: 150px" />
+            <ElSelect v-model="v.type" style="width: 96px">
+              <ElOption label="字符串" value="string" />
+              <ElOption label="数字" value="number" />
+              <ElOption label="密钥" value="secret" />
+            </ElSelect>
+            <ElInput
+              v-model="v.value"
+              :type="v.type === 'secret' ? 'password' : 'text'"
+              :show-password="v.type === 'secret'"
+              placeholder="值"
+            />
+            <ElButton link type="danger" @click="removeEnvVar(i)">
+              <IconifyIcon icon="lucide:trash-2" />
+            </ElButton>
+          </div>
+          <ElButton size="small" @click="addEnvVar">
+            <IconifyIcon icon="lucide:plus" style="margin-right: 4px" />
+            添加环境变量
+          </ElButton>
+        </PanelSection>
+
+        <PanelSection title="会话变量" icon="lucide:messages-square">
+          <p class="wf-varhint">
+            可变状态，初始为默认值，可由「变量赋值」节点写入
+            <code>conversation.名称</code>；按 <code>{{ convRefHint }}</code>
+            引用。
+          </p>
+          <div
+            v-for="(v, i) in conversationVariables"
+            :key="`conv-${i}`"
+            class="wf-vars__row"
+          >
+            <ElInput v-model="v.name" placeholder="名称" style="width: 150px" />
+            <ElSelect v-model="v.type" style="width: 96px">
+              <ElOption label="字符串" value="string" />
+              <ElOption label="数字" value="number" />
+              <ElOption label="对象" value="json" />
+            </ElSelect>
+            <ElInput v-model="v.value" placeholder="默认值" />
+            <ElButton link type="danger" @click="removeConvVar(i)">
+              <IconifyIcon icon="lucide:trash-2" />
+            </ElButton>
+          </div>
+          <ElButton size="small" @click="addConvVar">
+            <IconifyIcon icon="lucide:plus" style="margin-right: 4px" />
+            添加会话变量
+          </ElButton>
+        </PanelSection>
+
+        <ElButton type="primary" :loading="saving" @click="save">
+          {{ $t('agentscope.common.save') }}
+        </ElButton>
+      </div>
+    </ElDrawer>
   </div>
 </template>
 
@@ -2121,6 +2284,19 @@ onMounted(load);
   display: flex;
   flex-direction: column;
   height: calc(100vh - 90px);
+}
+
+.wf-vars__sys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wf-vars__row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
 .wf-toolbar {

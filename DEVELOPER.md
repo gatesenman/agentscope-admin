@@ -144,6 +144,20 @@ Two mapping layers make the ontology operable by agents:
 
 CRUD lives under `/ontology/{oid}/datasources` and `/ontology/{oid}/connectors`. Agents discover all of this through tools (`server/app/ontology/tools.py`): `ontology_list_object_types` now reports the backing datasource + per-property `column`, and the new `ontology_list_actions` reports each action's `writes_back_to` connector/operation. Seed a self-consistent example with `scripts/seed_risk_ontology.py`.
 
+### 3c. Workflow variable system (system / environment / conversation)
+
+Beyond `{{<node>.<field>}}` references to upstream node outputs, a workflow exposes three Dify-style built-in variable scopes, seeded into the run context by `WorkflowEngine._seed_variable_namespaces()` before any node runs:
+
+| Scope | Reference | Source | Mutable |
+| --- | --- | --- | --- |
+| System | `{{sys.query}}`, `{{sys.files}}`, `{{sys.user_id}}`, `{{sys.workflow_id}}`, `{{sys.workflow_run_id}}` | injected at run time from the request inputs / engine | no |
+| Environment | `{{env.<name>}}` | `graph.environment_variables` (`[{name, value, type}]`, `type ∈ string\|number\|secret`) | no (read-only config / secrets) |
+| Conversation | `{{conversation.<name>}}` | `graph.conversation_variables` (`[{name, value, type}]`, `type ∈ string\|number\|json`) | yes — the `assigner` node writes them |
+
+- `_coerce_var_list()` (engine.py) turns each list into a `name → value` dict, coercing `number` to int/float and parsing `json` values. Environment vars are read-only; conversation vars start at their declared defaults.
+- The **`assigner`** node writes to the conversation scope when an assignment target is prefixed `conversation.<name>` (`_run_assigner`), so state can be carried/updated across the run; non-prefixed targets stay at the top level (`{{<name>}}`).
+- The editor manages both lists in the **全局变量** drawer (`editor.vue`); they are persisted on `graph.environment_variables` / `graph.conversation_variables` by `save()` and restored by `load()`. `globalVars` merges `sys` / `env` / `conversation` into every `VarInput` autocomplete, so the scopes are referenceable from any node regardless of graph wiring.
+
 ---
 
 ## 4. Recipe: add a new workflow node type

@@ -22,6 +22,7 @@ from datetime import datetime
 from typing import Any, AsyncGenerator
 
 import httpx
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
@@ -552,6 +553,51 @@ def _origin_allowed(app: PublishedApp, origin: str | None) -> bool:
     return origin in app.allowed_origins
 
 
+_redis_client: aioredis.Redis | None = None
+
+
+def _get_redis() -> aioredis.Redis:
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = aioredis.Redis(
+            host=_settings.redis_host,
+            port=_settings.redis_port,
+            db=_settings.redis_db,
+            password=_settings.redis_password,
+            decode_responses=True,
+        )
+    return _redis_client
+
+
+async def _enforce_rate_limit(app: PublishedApp) -> None:
+    """Per-minute fixed-window rate limit for a published app.
+
+    Counts all chat requests (hosted Web App, embed, and API key surface) for
+    the app within the current minute and rejects with HTTP 429 once
+    ``rate_limit_per_min`` is exceeded. ``rate_limit_per_min <= 0`` disables the
+    limit. The counter lives in Redis so it is shared across workers; if Redis
+    is unreachable we fail open rather than block legitimate traffic on a
+    limiter-infrastructure problem.
+    """
+    limit = app.rate_limit_per_min or 0
+    if limit <= 0:
+        return
+    window = int(time.time()) // 60
+    key = f"ratelimit:{app.id}:{window}"
+    try:
+        client = _get_redis()
+        count = await client.incr(key)
+        if count == 1:
+            await client.expire(key, 60)
+    except Exception:
+        return
+    if count > limit:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Please retry shortly.",
+        )
+
+
 _EMBED_JS = """\
 /* AgentScope Admin embeddable chat bubble (cross-platform, no external deps). */
 (function () {
@@ -665,6 +711,7 @@ async def public_app_chat(
     app = _app_by_token(session, token)
     if not _origin_allowed(app, request.headers.get("origin")):
         raise HTTPException(status_code=403, detail="Origin not allowed.")
+    await _enforce_rate_limit(app)
     conversation_id = body.conversation_id or uuid.uuid4().hex
     headers = {
         "Cache-Control": "no-cache",
@@ -692,6 +739,7 @@ async def api_chat_messages(
     """
     app = _app_by_token(session, token)
     _authenticate_key(session, app, authorization)
+    await _enforce_rate_limit(app)
     conversation_id = body.conversation_id or uuid.uuid4().hex
 
     if body.response_mode == "blocking":

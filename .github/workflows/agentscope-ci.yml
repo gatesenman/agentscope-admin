@@ -1,0 +1,61 @@
+name: AgentScope CI
+
+# The inherited vue-vben-admin workflows are all guarded with
+# `if: github.repository == 'vbenjs/vue-vben-admin'`, so they never run on this
+# fork. This workflow gives the fork its own working CI: it lints, type-checks
+# and production-builds the Element Plus admin app, and byte-compiles the
+# FastAPI backend.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: agentscope-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (lint · typecheck · build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check (web-ele)
+        run: pnpm -F @vben/web-ele run typecheck
+
+      - name: Build (web-ele)
+        run: pnpm -F @vben/web-ele run build
+
+  backend:
+    name: Backend (byte-compile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Byte-compile backend
+        run: python -m compileall -q server/app

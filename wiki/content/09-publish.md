@@ -17,6 +17,14 @@ Dify 风格的「发布」：把一个智能体冻结成一个公开 **App**，�
 ### 3. 嵌入（Embed）
 - `<iframe>` 内嵌 + 浮动聊天气泡 `<script>`（后端 `/static/embed.js`），一键复制粘到任意网站。
 
+## 跨端支持（Cross-platform）
+
+发布的应用一套代码适配多端，无需为每个终端单独开发：
+
+- **响应式 WebApp**（`webapp/`）：使用动态视口高度 `100dvh` 避免移动端浏览器工具栏遮挡输入框；底部输入区适配刘海屏 / home indicator 安全区（`env(safe-area-inset-bottom)`）；头部 / 消息 / 输入区在手机 / 平板 / 桌面下采用不同间距。
+- **可嵌入气泡**（`/static/embed.js`）：纯原生、无第三方依赖；图标为内联 lucide SVG（非 emoji）。桌面端为右下角浮动面板（默认 400×640，可配 `width` / `height`），手机端（`max-width: 640px`）自动切换为全屏，关闭按钮移至顶部，便于单手操作。
+- **嵌入配置**：`window.AGENTSCOPE_APP = { url, color?, width?, height?, title? }`；`<iframe>` 片段带 `title` 与 `allowfullscreen`。
+
 ## 管理端点
 
 | 操作 | 端点 |

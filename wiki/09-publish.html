@@ -57,6 +57,13 @@
 <ul>
 <li><code>&lt;iframe&gt;</code> 内嵌 + 浮动聊天气泡 <code>&lt;script&gt;</code>（后端 <code>/static/embed.js</code>），一键复制粘到任意网站。</li>
 </ul>
+<h2 id="cross-platform">跨端支持（Cross-platform）</h2>
+<p>发布的应用一套代码适配多端，无需为每个终端单独开发：</p>
+<ul>
+<li><strong>响应式 WebApp</strong>（<code>webapp/</code>）：使用动态视口高度 <code>100dvh</code> 避免移动端浏览器工具栏遮挡输入框；底部输入区适配刘海屏 / home indicator 安全区（<code>env(safe-area-inset-bottom)</code>）；头部 / 消息 / 输入区在手机 / 平板 / 桌面下采用不同间距。</li>
+<li><strong>可嵌入气泡</strong>（<code>/static/embed.js</code>）：纯原生、无第三方依赖；图标为内联 lucide SVG（非 emoji）。桌面端为右下角浮动面板（默认 400×640，可配 <code>width</code> / <code>height</code>），手机端（<code>max-width: 640px</code>）自动切换为全屏，关闭按钮移至顶部，便于单手操作。</li>
+<li><strong>嵌入配置</strong>：<code>window.AGENTSCOPE_APP = { url, color?, width?, height?, title? }</code>；<code>&lt;iframe&gt;</code> 片段带 <code>title</code> 与 <code>allowfullscreen</code>。</li>
+</ul>
 <h2 id="_2">管理端点</h2>
 <table>
 <thead>

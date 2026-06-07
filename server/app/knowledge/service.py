@@ -9,9 +9,10 @@ from typing import Any
 
 from sqlmodel import Session, delete, select
 
-from . import graph, pipeline
+from . import graph, pipeline, qa
 from .models import (
     CHUNK_PARENT_CHILD,
+    CHUNK_QA,
     INDEX_GRAPH,
     INDEX_HYBRID,
     INDEX_VECTOR,
@@ -36,6 +37,13 @@ def _max_triples(kb: KnowledgeBase) -> int:
     return 8
 
 
+def _max_qa_pairs(kb: KnowledgeBase) -> int:
+    for stage in kb.pipeline:
+        if stage.get("type") == "qa":
+            return int(stage.get("config", {}).get("max_pairs_per_chunk", 5))
+    return 5
+
+
 def ingest_document(session: Session, doc: Document, kb: KnowledgeBase) -> Document:
     """Run the KB pipeline over a document and (re)build its chunks, embeddings
     and (for the knowledge-graph method) triples."""
@@ -47,7 +55,41 @@ def ingest_document(session: Session, doc: Document, kb: KnowledgeBase) -> Docum
         dim = _embed_dim(kb)
         chunk_rows: list[Chunk] = []
 
-        if kb.chunk_strategy == CHUNK_PARENT_CHILD:
+        if kb.chunk_strategy == CHUNK_QA:
+            # Split into base chunks, then turn each into Q&A pairs. The
+            # question is the indexed/embedded content; the answer is kept as
+            # grounded context returned on a hit.
+            base_texts = pipeline.run_pipeline(doc.content, kb.pipeline)
+            max_pairs = _max_qa_pairs(kb)
+            seq = 0
+            for base in base_texts:
+                pairs = qa.extract_qa_pairs(
+                    base,
+                    kb.qa_type,
+                    kb.qa_credential_id,
+                    kb.qa_model,
+                    user_id=kb.owner_user_id,
+                    max_pairs=max_pairs,
+                )
+                for pair in pairs:
+                    question = pair["question"]
+                    answer = pair["answer"]
+                    # Match against question + answer; display the question.
+                    indexed_text = f"{question}\n{answer}"
+                    row = Chunk(
+                        kb_id=kb.id,
+                        document_id=doc.id,
+                        seq=seq,
+                        content=question,
+                        answer=answer,
+                        term_freq=pipeline.term_freq(indexed_text),
+                        embedding=pipeline.embed(indexed_text, dim) if want_embed else [],
+                    )
+                    session.add(row)
+                    chunk_rows.append(row)
+                    seq += 1
+            indexed = len(chunk_rows)
+        elif kb.chunk_strategy == CHUNK_PARENT_CHILD:
             parents = pipeline.run_pipeline_parent_child(doc.content, kb.pipeline)
             seq = 0
             for parent in parents:
@@ -147,6 +189,7 @@ def _retrievable_chunks(session: Session, kb_id: str) -> list[dict[str, Any]]:
                 "document_id": c.document_id,
                 "seq": c.seq,
                 "content": c.content,
+                "answer": c.answer,
                 "parent_id": c.parent_id,
                 "term_freq": c.term_freq,
                 "embedding": c.embedding,

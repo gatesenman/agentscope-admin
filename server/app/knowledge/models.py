@@ -23,6 +23,10 @@ def _now() -> datetime:
 # Chunking strategies (how a document is segmented).
 CHUNK_GENERAL = "general"
 CHUNK_PARENT_CHILD = "parent_child"
+# Q&A segmentation (Dify "Q&A 模式"): an LLM turns each base chunk into
+# question/answer pairs; the question is indexed for retrieval and the answer
+# is returned as the grounded context.
+CHUNK_QA = "qa"
 
 # Index / retrieval methods (how chunks are indexed and searched).
 INDEX_KEYWORD = "keyword"
@@ -73,6 +77,15 @@ def build_pipeline(
             },
         )
 
+    if chunk_strategy == CHUNK_QA:
+        stages.append(
+            {
+                "type": "qa",
+                "name": "QA 分块",
+                "config": {"max_pairs_per_chunk": 5},
+            },
+        )
+
     if index_method in (INDEX_VECTOR, INDEX_HYBRID):
         stages.append(
             {"type": "embed", "name": "向量嵌入", "config": {"dim": 256}},
@@ -113,6 +126,12 @@ class KnowledgeBase(SQLModel, table=True):
     kg_type: str = ""
     kg_credential_id: str = ""
     kg_model: str = ""
+
+    # Credential + model used by the Q&A extractor (LLM). Only required when
+    # ``chunk_strategy == qa``.
+    qa_type: str = ""
+    qa_credential_id: str = ""
+    qa_model: str = ""
 
     # Ordered ingestion pipeline stages, derived from the strategy + method
     # but persisted so the orchestration UI can display (and tweak) them.
@@ -161,6 +180,10 @@ class Chunk(SQLModel, table=True):
     # parent's full text is returned as retrieval context. Empty for general.
     parent_id: str = Field(default="", index=True)
     is_parent: bool = False
+    # Q&A segmentation: ``content`` holds the generated question (what is
+    # matched at retrieval time) and ``answer`` the grounded answer returned
+    # on a hit. Empty for the other chunk strategies.
+    answer: str = Field(default="")
     # Sparse term-frequency vector ``{term: count}`` cached at index time so
     # retrieval avoids re-tokenising every chunk on each query.
     term_freq: dict[str, int] = Field(

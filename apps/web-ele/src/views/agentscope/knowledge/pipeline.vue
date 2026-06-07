@@ -100,6 +100,13 @@ function buildStages(
     },
     split,
   ];
+  if (strategy === 'qa') {
+    out.push({
+      type: 'qa',
+      name: 'QA 分块',
+      config: { max_pairs_per_chunk: 5 },
+    });
+  }
   if (method === 'vector' || method === 'hybrid') {
     out.push({ type: 'embed', name: '向量嵌入', config: { dim: 256 } });
   }
@@ -163,7 +170,10 @@ function credentialType(id: string): string {
 function onStrategyMethodChange() {
   stages.value = buildStages(chunkStrategy.value, indexMethod.value);
   selectedIndex.value = -1;
-  if (indexMethod.value === 'knowledge_graph' && kgCredentialId.value) {
+  if (
+    (indexMethod.value === 'knowledge_graph' || chunkStrategy.value === 'qa') &&
+    kgCredentialId.value
+  ) {
     void loadModels(kgCredentialId.value);
   }
 }
@@ -192,8 +202,9 @@ async function load() {
   }));
   chunkStrategy.value = k.chunk_strategy;
   indexMethod.value = k.index_method;
-  kgCredentialId.value = k.kg_credential_id ?? '';
-  kgModel.value = k.kg_model ?? '';
+  // KG index and Q&A chunking share one extractor selector.
+  kgCredentialId.value = k.kg_credential_id || k.qa_credential_id || '';
+  kgModel.value = k.kg_model || k.qa_model || '';
   credentials.value = cr.credentials ?? [];
   if (kgCredentialId.value) void loadModels(kgCredentialId.value);
 }
@@ -208,6 +219,13 @@ async function save() {
       kg_model: kgModel.value,
       kg_type:
         indexMethod.value === 'knowledge_graph'
+          ? credentialType(kgCredentialId.value)
+          : '',
+      qa_credential_id:
+        chunkStrategy.value === 'qa' ? kgCredentialId.value : '',
+      qa_model: chunkStrategy.value === 'qa' ? kgModel.value : '',
+      qa_type:
+        chunkStrategy.value === 'qa'
           ? credentialType(kgCredentialId.value)
           : '',
       pipeline: stages.value,
@@ -248,6 +266,7 @@ onMounted(load);
       >
         <ElOption label="通用分块" value="general" />
         <ElOption label="父子分块" value="parent_child" />
+        <ElOption label="Q&A 分块" value="qa" />
       </ElSelect>
       <span class="pl-toolbar__label">索引方式</span>
       <ElSelect
@@ -261,7 +280,9 @@ onMounted(load);
         <ElOption label="语义知识图谱" value="knowledge_graph" />
         <ElOption label="混合检索" value="hybrid" />
       </ElSelect>
-      <template v-if="indexMethod === 'knowledge_graph'">
+      <template
+        v-if="indexMethod === 'knowledge_graph' || chunkStrategy === 'qa'"
+      >
         <ElSelect
           v-model="kgCredentialId"
           size="small"
@@ -433,6 +454,24 @@ onMounted(load);
                 <p class="pl-hint">
                   使用上方「抽取凭证 / 抽取模型」调用 LLM 从每个分块中抽取
                   (主语,谓语,宾语) 三元组，构建语义知识图谱。
+                </p>
+              </ElForm>
+
+              <!-- qa -->
+              <ElForm
+                v-else-if="selectedStage.type === 'qa'"
+                label-position="top"
+              >
+                <ElFormItem label="每块最大问答对数">
+                  <ElInputNumber
+                    v-model="selectedStage.config.max_pairs_per_chunk"
+                    :min="1"
+                    :max="20"
+                  />
+                </ElFormItem>
+                <p class="pl-hint">
+                  使用上方「抽取凭证 / 抽取模型」调用 LLM
+                  将每个分块转写为问答对；问题用于检索匹配，答案作为命中内容返回。
                 </p>
               </ElForm>
 

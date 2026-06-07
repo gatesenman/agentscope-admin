@@ -247,6 +247,7 @@
     "indexMethod": "Index / Retrieval",
     "strategyGeneral": "General",
     "strategyParentChild": "Parent-Child",
+    "strategyQa": "Q&A",
     "methodKeyword": "Keyword",
     "methodVector": "Vector",
     "methodGraph": "Knowledge Graph",
@@ -273,7 +274,9 @@
     "stageSplitParentChild": "Parent-Child Split",
     "stageEmbed": "Embed",
     "stageBuildGraph": "Build Graph",
+    "stageQa": "Q&A",
     "stageIndex": "Index",
+    "qaAnswer": "Answer",
     "createMethodHint": "Pick a chunk strategy and retrieval method per industry standards; the ingestion pipeline is generated accordingly."
   },
   "mcp": {

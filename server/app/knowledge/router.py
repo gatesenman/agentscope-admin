@@ -34,6 +34,9 @@ class KnowledgeBaseIn(BaseModel):
     kg_type: str = ""
     kg_credential_id: str = ""
     kg_model: str = ""
+    qa_type: str = ""
+    qa_credential_id: str = ""
+    qa_model: str = ""
     pipeline: list[dict[str, Any]] | None = None
     top_k: int = 4
     score_threshold: float = 0.0
@@ -48,6 +51,9 @@ class KnowledgeBaseUpdate(BaseModel):
     kg_type: str | None = None
     kg_credential_id: str | None = None
     kg_model: str | None = None
+    qa_type: str | None = None
+    qa_credential_id: str | None = None
+    qa_model: str | None = None
     pipeline: list[dict[str, Any]] | None = None
     top_k: int | None = None
     score_threshold: float | None = None
@@ -219,7 +225,14 @@ def list_chunks(
     rows = list(session.exec(stmt.order_by(Chunk.document_id, Chunk.seq)))
     return {
         "items": [
-            {"id": c.id, "document_id": c.document_id, "seq": c.seq, "content": c.content}
+            {
+                "id": c.id,
+                "document_id": c.document_id,
+                "seq": c.seq,
+                "content": c.content,
+                "answer": c.answer,
+                "is_parent": c.is_parent,
+            }
             for c in rows
         ],
         "total": len(rows),
@@ -250,6 +263,7 @@ def retrieve(
                 "document_id": h["document_id"],
                 "seq": h["seq"],
                 "content": h["content"],
+                "answer": h.get("answer", ""),
                 "score": h["score"],
                 "context": h.get("context", ""),
                 "triples": h.get("triples", []),

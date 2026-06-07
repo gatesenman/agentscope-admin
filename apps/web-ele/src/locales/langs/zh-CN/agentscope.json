@@ -247,6 +247,7 @@
     "indexMethod": "索引/检索方式",
     "strategyGeneral": "通用分块",
     "strategyParentChild": "父子分块",
+    "strategyQa": "Q&A 分块",
     "methodKeyword": "关键词检索",
     "methodVector": "向量检索",
     "methodGraph": "语义知识图谱",
@@ -273,7 +274,9 @@
     "stageSplitParentChild": "父子分块",
     "stageEmbed": "向量嵌入",
     "stageBuildGraph": "构建知识图谱",
+    "stageQa": "QA 分块",
     "stageIndex": "建立索引",
+    "qaAnswer": "答案",
     "createMethodHint": "按行业标准选择分块策略与检索方式，平台会据此生成摄取流水线。"
   },
   "mcp": {

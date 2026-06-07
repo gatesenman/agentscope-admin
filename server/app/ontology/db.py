@@ -44,6 +44,9 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "kg_type": "VARCHAR DEFAULT ''",
         "kg_credential_id": "VARCHAR DEFAULT ''",
         "kg_model": "VARCHAR DEFAULT ''",
+        "qa_type": "VARCHAR DEFAULT ''",
+        "qa_credential_id": "VARCHAR DEFAULT ''",
+        "qa_model": "VARCHAR DEFAULT ''",
     },
     "knowledge_document": {
         "triple_count": "INTEGER DEFAULT 0",
@@ -52,6 +55,7 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "parent_id": "VARCHAR DEFAULT ''",
         "is_parent": "BOOLEAN DEFAULT 0",
         "embedding": "JSON",
+        "answer": "VARCHAR DEFAULT ''",
     },
     "object_type": {
         "datasource_id": "VARCHAR",

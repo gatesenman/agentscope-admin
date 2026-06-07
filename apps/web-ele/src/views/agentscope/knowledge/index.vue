@@ -44,6 +44,7 @@ import { $t } from '#/locales';
 const chunkStrategies: { label: string; value: ChunkStrategy }[] = [
   { value: 'general', label: 'strategyGeneral' },
   { value: 'parent_child', label: 'strategyParentChild' },
+  { value: 'qa', label: 'strategyQa' },
 ];
 
 const indexMethods: { label: string; value: IndexMethod }[] = [
@@ -59,6 +60,7 @@ const STAGE_ICON: Record<string, string> = {
   clean: 'lucide:eraser',
   split: 'lucide:scissors',
   split_parent_child: 'lucide:list-tree',
+  qa: 'lucide:messages-square',
   embed: 'lucide:boxes',
   build_graph: 'lucide:share-2',
   index: 'lucide:database',
@@ -71,6 +73,16 @@ function methodLabel(m: string): string {
 
 function needsKg(method: string): boolean {
   return method === 'knowledge_graph';
+}
+
+function isQa(strategy: string): boolean {
+  return strategy === 'qa';
+}
+
+/** Both the knowledge-graph index and the Q&A chunk strategy need an LLM
+ * extractor; they share one credential/model selector. */
+function needsExtractor(method: string, strategy: string): boolean {
+  return needsKg(method) || isQa(strategy);
 }
 
 /** Mirror of the backend `build_pipeline` so the create dialog can preview. */
@@ -105,6 +117,10 @@ function buildPreview(
       config: {},
     });
   }
+  const qaStage: PipelineStage[] =
+    strategy === 'qa'
+      ? [{ type: 'qa', name: $t('agentscope.knowledge.stageQa'), config: {} }]
+      : [];
   return [
     {
       type: 'extract',
@@ -113,6 +129,7 @@ function buildPreview(
     },
     { type: 'clean', name: $t('agentscope.knowledge.stageClean'), config: {} },
     split,
+    ...qaStage,
     ...indexers,
     { type: 'index', name: $t('agentscope.knowledge.stageIndex'), config: {} },
   ];
@@ -237,11 +254,13 @@ async function create() {
   }
   saving.value = true;
   try {
+    const extractorType = credentialType(form.kg_credential_id);
     await knowledgeApi.createKnowledgeBase({
       ...form,
-      kg_type: needsKg(form.index_method)
-        ? credentialType(form.kg_credential_id)
-        : '',
+      kg_type: needsKg(form.index_method) ? extractorType : '',
+      qa_type: isQa(form.chunk_strategy) ? extractorType : '',
+      qa_credential_id: isQa(form.chunk_strategy) ? form.kg_credential_id : '',
+      qa_model: isQa(form.chunk_strategy) ? form.kg_model : '',
     });
     ElMessage.success($t('agentscope.common.saveSuccess'));
     createDialog.value = false;
@@ -266,8 +285,11 @@ async function openManage(kb: KnowledgeBase) {
   triples.value = [];
   editMethod.chunk_strategy = kb.chunk_strategy ?? 'general';
   editMethod.index_method = kb.index_method ?? 'keyword';
-  editMethod.kg_credential_id = kb.kg_credential_id ?? '';
-  editMethod.kg_model = kb.kg_model ?? '';
+  // KG and Q&A share one extractor selector; seed it from whichever the KB
+  // already has configured.
+  editMethod.kg_credential_id =
+    kb.kg_credential_id || kb.qa_credential_id || '';
+  editMethod.kg_model = kb.kg_model || kb.qa_model || '';
   editKgModels.value = [];
   if (editMethod.kg_credential_id) {
     void onEditCredentialChange(editMethod.kg_credential_id);
@@ -347,6 +369,13 @@ async function applyMethod() {
       kg_credential_id: editMethod.kg_credential_id,
       kg_model: editMethod.kg_model,
       kg_type: needsKg(editMethod.index_method)
+        ? credentialType(editMethod.kg_credential_id)
+        : '',
+      qa_credential_id: isQa(editMethod.chunk_strategy)
+        ? editMethod.kg_credential_id
+        : '',
+      qa_model: isQa(editMethod.chunk_strategy) ? editMethod.kg_model : '',
+      qa_type: isQa(editMethod.chunk_strategy)
         ? credentialType(editMethod.kg_credential_id)
         : '',
       // Keep the edited split config only when the method (and thus the
@@ -525,7 +554,7 @@ onMounted(load);
           </ElSelect>
         </ElFormItem>
 
-        <template v-if="needsKg(form.index_method)">
+        <template v-if="needsExtractor(form.index_method, form.chunk_strategy)">
           <ElFormItem :label="$t('agentscope.knowledge.kgCredential')">
             <ElSelect
               v-model="form.kg_credential_id"
@@ -695,7 +724,14 @@ onMounted(load);
                 />
               </ElSelect>
             </ElFormItem>
-            <template v-if="needsKg(editMethod.index_method)">
+            <template
+              v-if="
+                needsExtractor(
+                  editMethod.index_method,
+                  editMethod.chunk_strategy,
+                )
+              "
+            >
               <ElFormItem :label="$t('agentscope.knowledge.kgCredential')">
                 <ElSelect
                   v-model="editMethod.kg_credential_id"
@@ -821,6 +857,29 @@ onMounted(load);
               </div>
               <div style="font-size: 13px; white-space: pre-wrap">
                 {{ hit.content }}
+              </div>
+
+              <div
+                v-if="hit.answer"
+                style="
+                  padding: 8px;
+                  margin-top: 8px;
+                  background: var(--el-color-success-light-9);
+                  border-radius: 6px;
+                "
+              >
+                <div
+                  style="
+                    margin-bottom: 4px;
+                    font-size: 12px;
+                    color: var(--el-color-success);
+                  "
+                >
+                  {{ $t('agentscope.knowledge.qaAnswer') }}
+                </div>
+                <div style="font-size: 12px; white-space: pre-wrap">
+                  {{ hit.answer }}
+                </div>
               </div>
 
               <div

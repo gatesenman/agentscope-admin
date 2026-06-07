@@ -1,15 +1,17 @@
 import { agentScopeClient } from './request';
 
-export type ChunkStrategy = 'general' | 'parent_child';
+export type ChunkStrategy = 'general' | 'parent_child' | 'qa';
 export type IndexMethod = 'hybrid' | 'keyword' | 'knowledge_graph' | 'vector';
 
 export interface PipelineStage {
   type:
     | 'build_graph'
     | 'clean'
+    | 'datasource'
     | 'embed'
     | 'extract'
     | 'index'
+    | 'qa'
     | 'split'
     | 'split_parent_child';
   name: string;
@@ -27,6 +29,9 @@ export interface KnowledgeBase {
   kg_type: string;
   kg_credential_id: string;
   kg_model: string;
+  qa_type: string;
+  qa_credential_id: string;
+  qa_model: string;
   pipeline: PipelineStage[];
   top_k: number;
   score_threshold: number;
@@ -73,6 +78,7 @@ export interface RetrievedChunk {
   document_id: string;
   seq: number;
   content: string;
+  answer?: string;
   score: number;
   context?: string;
   triples?: RetrievedTriple[];

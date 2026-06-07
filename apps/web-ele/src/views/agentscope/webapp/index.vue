@@ -74,7 +74,7 @@ async function send(text?: string) {
 </script>
 
 <template>
-  <div class="flex h-screen flex-col bg-gray-50 dark:bg-zinc-900">
+  <div class="webapp-root flex flex-col bg-gray-50 dark:bg-zinc-900">
     <div v-if="error" class="flex flex-1 items-center justify-center">
       <div class="text-center text-gray-500">
         <IconifyIcon icon="lucide:unplug" class="mb-2 text-5xl" />
@@ -85,7 +85,7 @@ async function send(text?: string) {
     <template v-else-if="meta">
       <!-- Header -->
       <header
-        class="flex items-center gap-3 border-b bg-white px-6 py-4 dark:border-zinc-700 dark:bg-zinc-800"
+        class="flex items-center gap-3 border-b bg-white px-4 py-3 sm:px-6 sm:py-4 dark:border-zinc-700 dark:bg-zinc-800"
       >
         <IconifyIcon
           v-if="meta.icon && meta.icon.includes(':')"
@@ -100,7 +100,10 @@ async function send(text?: string) {
       </header>
 
       <!-- Messages -->
-      <main ref="scroller" class="flex-1 overflow-y-auto px-4 py-6">
+      <main
+        ref="scroller"
+        class="flex-1 overflow-y-auto px-3 py-4 sm:px-4 sm:py-6"
+      >
         <div class="mx-auto flex max-w-3xl flex-col gap-4">
           <div
             v-for="(m, i) in messages"
@@ -139,7 +142,7 @@ async function send(text?: string) {
 
       <!-- Composer -->
       <footer
-        class="border-t bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800"
+        class="webapp-composer border-t bg-white px-3 py-2.5 sm:px-4 sm:py-3 dark:border-zinc-700 dark:bg-zinc-800"
       >
         <div class="mx-auto flex max-w-3xl items-end gap-2">
           <ElInput
@@ -161,3 +164,17 @@ async function send(text?: string) {
     </template>
   </div>
 </template>
+
+<style scoped>
+/* Cross-platform full-height: dynamic viewport unit avoids the mobile
+ * browser chrome clipping the composer; falls back to vh on older engines. */
+.webapp-root {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Respect the home-indicator / notch safe area on iOS/Android. */
+.webapp-composer {
+  padding-bottom: calc(0.625rem + env(safe-area-inset-bottom, 0px));
+}
+</style>

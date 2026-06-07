@@ -553,42 +553,88 @@ def _origin_allowed(app: PublishedApp, origin: str | None) -> bool:
 
 
 _EMBED_JS = """\
-/* AgentScope Admin embeddable chat bubble. */
+/* AgentScope Admin embeddable chat bubble (cross-platform, no external deps). */
 (function () {
   var cfg = window.AGENTSCOPE_APP || {};
   if (!cfg.url) {
     console.error("AGENTSCOPE_APP.url is required");
     return;
   }
+  var ICON_CHAT =
+    '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+    'stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 ' +
+    '8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 ' +
+    '8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 ' +
+    '8.48 0 0 1 8 8v.5z"></path></svg>';
+  var ICON_CLOSE =
+    '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" ' +
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+    'stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line>' +
+    '<line x1="6" y1="6" x2="18" y2="18"></line></svg>';
   var open = false;
+  var mobile = window.matchMedia("(max-width: 640px)");
   var btn = document.createElement("div");
-  btn.innerHTML = "\\uD83D\\uDCAC";
+  btn.innerHTML = ICON_CHAT;
   Object.assign(btn.style, {
-    position: "fixed", right: "24px", bottom: "24px", width: "56px",
-    height: "56px", borderRadius: "50%", background: cfg.color || "#2563eb",
-    color: "#fff", fontSize: "26px", display: "flex",
+    position: "fixed",
+    right: "max(16px, env(safe-area-inset-right))",
+    bottom: "max(16px, env(safe-area-inset-bottom))",
+    width: "56px", height: "56px", borderRadius: "50%",
+    background: cfg.color || "#2563eb", color: "#fff", display: "flex",
     alignItems: "center", justifyContent: "center", cursor: "pointer",
     boxShadow: "0 6px 20px rgba(0,0,0,.25)", zIndex: 2147483646
   });
   var frame = document.createElement("iframe");
   frame.src = cfg.url;
   frame.allow = "microphone";
-  Object.assign(frame.style, {
-    position: "fixed", right: "24px", bottom: "92px",
-    width: cfg.width || "400px", height: cfg.height || "640px",
-    maxWidth: "calc(100vw - 48px)", maxHeight: "calc(100vh - 120px)",
-    border: "0", borderRadius: "14px", display: "none",
-    boxShadow: "0 12px 40px rgba(0,0,0,.3)", zIndex: 2147483646,
-    background: "#fff"
-  });
-  function toggle() {
-    open = !open;
-    frame.style.display = open ? "block" : "none";
-    btn.innerHTML = open ? "\\u2715" : "\\uD83D\\uDCAC";
-  }
-  btn.addEventListener("click", toggle);
+  frame.title = cfg.title || "Chat";
   document.body.appendChild(frame);
   document.body.appendChild(btn);
+
+  /* Layout differs by viewport: floating panel on desktop, near-fullscreen
+   * sheet on phones so the app is usable on every device. */
+  function layout() {
+    var base = {
+      position: "fixed", border: "0", zIndex: 2147483646,
+      background: "#fff", boxShadow: "0 12px 40px rgba(0,0,0,.3)",
+      display: open ? "block" : "none"
+    };
+    if (mobile.matches) {
+      Object.assign(base, {
+        left: "0", right: "0", top: "0", bottom: "0",
+        width: "100%", height: "100%", borderRadius: "0"
+      });
+    } else {
+      Object.assign(base, {
+        left: "auto", top: "auto", right: "24px", bottom: "92px",
+        width: cfg.width || "400px", height: cfg.height || "640px",
+        maxWidth: "calc(100vw - 48px)", maxHeight: "calc(100vh - 120px)",
+        borderRadius: "14px"
+      });
+    }
+    Object.assign(frame.style, base);
+    /* The button is appended after the iframe, so it always paints above it
+     * (same z-index) and stays tappable. On a phone the panel is fullscreen,
+     * so move the close button to the top-right to avoid the composer. */
+    if (open && mobile.matches) {
+      btn.style.top = "max(12px, env(safe-area-inset-top))";
+      btn.style.bottom = "auto";
+    } else {
+      btn.style.top = "auto";
+      btn.style.bottom = "max(16px, env(safe-area-inset-bottom))";
+    }
+  }
+  function toggle() {
+    open = !open;
+    btn.innerHTML = open ? ICON_CLOSE : ICON_CHAT;
+    layout();
+  }
+  btn.addEventListener("click", toggle);
+  (mobile.addEventListener
+    ? mobile.addEventListener.bind(mobile, "change")
+    : mobile.addListener.bind(mobile))(layout);
+  layout();
 })();
 """
 

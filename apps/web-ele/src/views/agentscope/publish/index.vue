@@ -149,8 +149,10 @@ const iframeSnippet = computed(() =>
   current.value
     ? `<iframe
   src="${webAppUrl.value}"
+  title="${current.value.name}"
   style="width:100%;height:700px;border:0;border-radius:12px"
-  allow="microphone">
+  allow="microphone"
+  allowfullscreen>
 </iframe>`
     : '',
 );
@@ -161,7 +163,8 @@ const bubbleSnippet = computed(() =>
   current.value
     ? [
         `<${tag}>`,
-        `  window.AGENTSCOPE_APP = { url: "${webAppUrl.value}" };`,
+        `  // url required; color/width/height/title optional`,
+        `  window.AGENTSCOPE_APP = { url: "${webAppUrl.value}", color: "#2563eb" };`,
         `</${tag}>`,
         `<${tag} src="${publishApi.apiBaseUrl()}/static/embed.js" defer></${tag}>`,
       ].join('\n')

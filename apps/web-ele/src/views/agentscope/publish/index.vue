@@ -11,11 +11,13 @@ import {
   ElButton,
   ElCard,
   ElDialog,
+  ElDivider,
   ElDrawer,
   ElEmpty,
   ElForm,
   ElFormItem,
   ElInput,
+  ElInputNumber,
   ElLink,
   ElMessage,
   ElMessageBox,
@@ -128,6 +130,9 @@ const drawer = ref(false);
 const current = ref<null | PublishedApp>(null);
 const keys = ref<AppApiKey[]>([]);
 const activeTab = ref('overview');
+// Blocked keywords are edited as newline/comma separated text and parsed back
+// into a string[] on save.
+const moderationKeywordsText = ref('');
 
 const webAppUrl = computed(() =>
   current.value ? publishApi.webAppUrl(current.value.token) : '',
@@ -173,6 +178,7 @@ const bubbleSnippet = computed(() =>
 
 async function openDetail(row: PublishedApp) {
   current.value = { ...row };
+  moderationKeywordsText.value = (row.moderation_keywords ?? []).join('\n');
   activeTab.value = 'overview';
   drawer.value = true;
   await loadKeys();
@@ -186,6 +192,10 @@ async function loadKeys() {
 
 async function saveOverview() {
   if (!current.value) return;
+  const moderationKeywords = moderationKeywordsText.value
+    .split(/[\n,]/)
+    .map((w) => w.trim())
+    .filter(Boolean);
   await publishApi.updateApp(current.value.id, {
     name: current.value.name,
     icon: current.value.icon,
@@ -193,6 +203,9 @@ async function saveOverview() {
     opening_statement: current.value.opening_statement,
     permission_mode: current.value.permission_mode,
     suggested_questions: current.value.suggested_questions,
+    rate_limit_per_min: current.value.rate_limit_per_min,
+    moderation_keywords: moderationKeywords,
+    moderation_reply: current.value.moderation_reply,
   });
   ElMessage.success($t('agentscope.common.saveSuccess'));
   await load();
@@ -383,6 +396,45 @@ onMounted(load);
                 />
               </ElSelect>
             </ElFormItem>
+
+            <ElDivider content-position="left">
+              {{ $t('agentscope.publish.security') }}
+            </ElDivider>
+            <ElFormItem :label="$t('agentscope.publish.rateLimit')">
+              <ElInputNumber
+                v-model="current.rate_limit_per_min"
+                :min="0"
+                class="w-full"
+              />
+              <p class="text-muted-foreground mt-1 text-xs">
+                {{ $t('agentscope.publish.rateLimitHint') }}
+              </p>
+            </ElFormItem>
+
+            <ElDivider content-position="left">
+              {{ $t('agentscope.publish.moderation') }}
+            </ElDivider>
+            <ElFormItem :label="$t('agentscope.publish.moderationKeywords')">
+              <ElInput
+                v-model="moderationKeywordsText"
+                :autosize="{ minRows: 3, maxRows: 8 }"
+                type="textarea"
+              />
+              <p class="text-muted-foreground mt-1 text-xs">
+                {{ $t('agentscope.publish.moderationKeywordsHint') }}
+              </p>
+            </ElFormItem>
+            <ElFormItem :label="$t('agentscope.publish.moderationReply')">
+              <ElInput
+                v-model="current.moderation_reply"
+                :placeholder="
+                  $t('agentscope.publish.moderationReplyPlaceholder')
+                "
+                :rows="2"
+                type="textarea"
+              />
+            </ElFormItem>
+
             <ElButton type="primary" @click="saveOverview">
               {{ $t('agentscope.common.save') }}
             </ElButton>

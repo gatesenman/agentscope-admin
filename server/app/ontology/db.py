@@ -69,6 +69,10 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "connector_operation": "VARCHAR DEFAULT ''",
         "parameter_bindings": "JSON",
     },
+    "published_app": {
+        "moderation_keywords": "JSON",
+        "moderation_reply": "VARCHAR DEFAULT ''",
+    },
 }
 
 

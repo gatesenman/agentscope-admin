@@ -66,6 +66,14 @@ class PublishedApp(SQLModel, table=True):
         sa_column=Column(SAJSON),
     )
     rate_limit_per_min: int = 60
+    # Content moderation (input guardrail): if the user message contains any of
+    # these case-insensitive keywords the app returns ``moderation_reply``
+    # instead of invoking the model. Empty list disables the guardrail.
+    moderation_keywords: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(SAJSON),
+    )
+    moderation_reply: str = ""
 
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)

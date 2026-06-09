@@ -22,6 +22,8 @@ export interface PublishedApp {
   enabled: boolean;
   allowed_origins: string[];
   rate_limit_per_min: number;
+  moderation_keywords: string[];
+  moderation_reply: string;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +47,8 @@ export interface PublishPayload {
   suggested_questions?: string[];
   allowed_origins?: string[];
   rate_limit_per_min?: number;
+  moderation_keywords?: string[];
+  moderation_reply?: string;
 }
 
 export interface UpdateAppPayload {
@@ -55,6 +59,8 @@ export interface UpdateAppPayload {
   suggested_questions?: string[];
   allowed_origins?: string[];
   rate_limit_per_min?: number;
+  moderation_keywords?: string[];
+  moderation_reply?: string;
   enabled?: boolean;
   permission_mode?: string;
 }

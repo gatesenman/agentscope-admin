@@ -193,7 +193,15 @@
     "revoke": "吊销",
     "embed": "嵌入网站",
     "iframe": "iframe 内嵌",
-    "bubble": "浮动聊天气泡"
+    "bubble": "浮动聊天气泡",
+    "security": "访问与安全",
+    "rateLimit": "每分钟请求上限",
+    "rateLimitHint": "0 表示不限制；超过后公开入口返回 429。",
+    "moderation": "内容护栏（敏感词）",
+    "moderationKeywords": "拦截关键词",
+    "moderationKeywordsHint": "每行一个；用户消息命中任一关键词（不区分大小写）时不调用模型，直接返回下方话术。留空则关闭。",
+    "moderationReply": "命中后的回复话术",
+    "moderationReplyPlaceholder": "抱歉，您的输入包含不被允许的内容，我无法回答。"
   },
   "workflow": {
     "newWorkflow": "新建工作流",

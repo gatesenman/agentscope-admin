@@ -53,6 +53,8 @@ class PublishIn(BaseModel):
     suggested_questions: list[str] = Field(default_factory=list)
     allowed_origins: list[str] = Field(default_factory=lambda: ["*"])
     rate_limit_per_min: int = 60
+    moderation_keywords: list[str] = Field(default_factory=list)
+    moderation_reply: str = ""
     # Optional explicit model override; when omitted we snapshot the agent
     # profile defaults.
     chat_model_type: str | None = None
@@ -72,6 +74,8 @@ class PublishUpdate(BaseModel):
     suggested_questions: list[str] | None = None
     allowed_origins: list[str] | None = None
     rate_limit_per_min: int | None = None
+    moderation_keywords: list[str] | None = None
+    moderation_reply: str | None = None
     enabled: bool | None = None
     permission_mode: str | None = None
     # Re-snapshot the model binding when provided.
@@ -185,6 +189,8 @@ def publish_app(
         suggested_questions=body.suggested_questions,
         allowed_origins=body.allowed_origins or ["*"],
         rate_limit_per_min=body.rate_limit_per_min,
+        moderation_keywords=body.moderation_keywords,
+        moderation_reply=body.moderation_reply,
         chat_model_type=body.chat_model_type
         or (profile.default_provider if profile else None),
         chat_model_credential_id=body.chat_model_credential_id
@@ -598,6 +604,42 @@ async def _enforce_rate_limit(app: PublishedApp) -> None:
         )
 
 
+_DEFAULT_MODERATION_REPLY = "抱歉，您的输入包含不被允许的内容，我无法回答。"
+
+
+def _moderation_reply(app: PublishedApp, query: str) -> str | None:
+    """Input guardrail: return a canned reply if ``query`` hits a blocked word.
+
+    Performs a case-insensitive substring match against ``moderation_keywords``.
+    Returns ``None`` when the guardrail is disabled (no keywords) or the message
+    is clean, so the caller proceeds to the model as usual.
+    """
+    keywords = app.moderation_keywords or []
+    if not keywords:
+        return None
+    haystack = (query or "").lower()
+    for word in keywords:
+        needle = (word or "").strip().lower()
+        if needle and needle in haystack:
+            return app.moderation_reply or _DEFAULT_MODERATION_REPLY
+    return None
+
+
+async def _blocked_reply_events(reply: str) -> AsyncGenerator[str, None]:
+    """Emit a single SSE text frame for a guardrail-blocked message.
+
+    Uses the same ``TEXT_BLOCK_DELTA`` frame the WebApp/embed client renders and
+    ``_collect_answer`` accumulates, so a blocked turn behaves like a normal
+    (instant) reply without ever invoking the model.
+    """
+    frame = {
+        "type": "TEXT_BLOCK_DELTA",
+        "block_id": "moderation",
+        "delta": reply,
+    }
+    yield f"data: {json.dumps(frame, ensure_ascii=False)}\n\n"
+
+
 _EMBED_JS = """\
 /* AgentScope Admin embeddable chat bubble (cross-platform, no external deps). */
 (function () {
@@ -718,8 +760,14 @@ async def public_app_chat(
         "X-Accel-Buffering": "no",
         "X-Conversation-Id": conversation_id,
     }
+    blocked = _moderation_reply(app, body.query)
+    events = (
+        _blocked_reply_events(blocked)
+        if blocked is not None
+        else _proxy_chat_events(app, body.query, conversation_id)
+    )
     return StreamingResponse(
-        _proxy_chat_events(app, body.query, conversation_id),
+        events,
         media_type="text/event-stream",
         headers=headers,
     )
@@ -742,14 +790,25 @@ async def api_chat_messages(
     await _enforce_rate_limit(app)
     conversation_id = body.conversation_id or uuid.uuid4().hex
 
+    blocked = _moderation_reply(app, body.query)
+
     if body.response_mode == "blocking":
-        answer = await _collect_answer(app, body.query, conversation_id)
+        answer = (
+            blocked
+            if blocked is not None
+            else await _collect_answer(app, body.query, conversation_id)
+        )
         return JSONResponse(
             {"answer": answer, "conversation_id": conversation_id},
         )
 
+    events = (
+        _blocked_reply_events(blocked)
+        if blocked is not None
+        else _proxy_chat_events(app, body.query, conversation_id)
+    )
     return StreamingResponse(
-        _proxy_chat_events(app, body.query, conversation_id),
+        events,
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

@@ -193,7 +193,15 @@
     "revoke": "Revoke",
     "embed": "Embed",
     "iframe": "iframe Embed",
-    "bubble": "Chat Bubble"
+    "bubble": "Chat Bubble",
+    "security": "Access & Safety",
+    "rateLimit": "Requests per minute",
+    "rateLimitHint": "0 disables the limit; public surfaces return 429 once exceeded.",
+    "moderation": "Content guardrail (keywords)",
+    "moderationKeywords": "Blocked keywords",
+    "moderationKeywordsHint": "One per line. If a user message matches any keyword (case-insensitive) the model is skipped and the reply below is returned. Leave empty to disable.",
+    "moderationReply": "Reply when blocked",
+    "moderationReplyPlaceholder": "Sorry, your message contains content I am not allowed to answer."
   },
   "workflow": {
     "newWorkflow": "New Workflow",

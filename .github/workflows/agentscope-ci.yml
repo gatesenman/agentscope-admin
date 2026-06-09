@@ -48,7 +48,7 @@ jobs:
         run: pnpm -F @vben/web-ele run build
 
   backend:
-    name: Backend (byte-compile)
+    name: Backend (compile + unit tests)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,5 +58,17 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install backend deps (excluding the agentscope git dependency)
+        # The pure helpers under test import without agentscope, so we skip the
+        # slow git clone of agentscope and install only the lightweight runtime
+        # deps plus pytest.
+        run: |
+          grep -v agentscope server/requirements.txt > /tmp/req-ci.txt
+          pip install -r /tmp/req-ci.txt pytest
+
       - name: Byte-compile backend
         run: python -m compileall -q server/app
+
+      - name: Unit tests
+        working-directory: server
+        run: python -m pytest tests -q

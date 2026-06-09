@@ -19,6 +19,7 @@ dependencies = [
   "sse-starlette==3.4.4",
   "APScheduler==3.11.2",
   "python-multipart==0.0.29",
+  "httpx==0.28.1",
   "requests>=2.31",
 ]
 

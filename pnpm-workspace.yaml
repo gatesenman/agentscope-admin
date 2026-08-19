@@ -99,7 +99,7 @@ catalog:
   '@vue-flow/core': ^1.48.2
   '@vue/shared': ^3.5.34
   '@vue/test-utils': ^2.4.10
-  '@vueuse/core': ^14.3.0
+  '@vueuse/core': ^14.4.0
   '@vueuse/integrations': ^14.3.0
   '@vueuse/motion': ^3.0.3
   archiver: ^7.0.1

@@ -65,7 +65,9 @@ agentscope-admin keys create <app_id> --name ci-key
 
 平台默认演示对接 **DeepSeek**（兼容 OpenAI 接口）。在「凭证」页或通过 `POST /credential/` 添加你的厂商 Key 后，在智能体「模型配置」里选择默认模型即可。
 
-> 仓库与本包内**不含**任何真实 API Key（已校验）；前端 `.env` 中的 `VITE_APP_STORE_SECURE_KEY` 仅为占位符，请替换为你自己的值。
+> 前端本地配置请复制 `apps/web-ele/.env.example` 为 `apps/web-ele/.env`，并把 `VITE_APP_STORE_SECURE_KEY` 换成你自己的随机值。`.env` 已加入 `.gitignore`，不要再提交。
+>
+> 注意：该密钥曾经被提交到默认分支，即使现在的树里已经删除，**历史提交里仍然存在**。请立刻轮换（作废并改用新密钥）。轮换无法单靠删除文件完成，也不应重写公开仓库的 git 历史。
 
 ## 本 wiki 的再生成
 

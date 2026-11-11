@@ -25,6 +25,9 @@ package-lock.json
 .omx
 .pnpm-store
 # local env files
+.env
+.env.*
+!.env.example
 .env.local
 .env.*.local
 .eslintcache

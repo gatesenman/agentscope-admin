@@ -1,6 +1,11 @@
-# AgentScope is consumed from the main branch (v2 app layer is newer than the
-# 2.0.0 PyPI release). Pin to a commit in production if you need determinism.
-agentscope @ git+https://github.com/agentscope-ai/agentscope.git
+# Pin to the last AgentScope revision compatible with this repo's app-layer
+# imports: agentscope.app._deps, LocalWorkspaceManager on
+# agentscope.app._manager, and create_app(..., extra_agent_tools=...) without
+# a required message_bus. That is the API this backend was written against
+# (and the one used for the README screenshots). Later revisions, including
+# current main and v2.0.1+, rename those modules and break
+# `import agentscope.app._deps`.
+agentscope @ git+https://github.com/agentscope-ai/agentscope.git@68f643db4d814d7a639b920c8a82ecb6b27bd39c
 
 fastapi==0.136.3
 uvicorn[standard]==0.48.0

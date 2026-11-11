@@ -128,19 +128,25 @@ async function loadModelsForType(type: string) {
 }
 
 async function load() {
-  const [orch, cr] = await Promise.all([
-    orchestrationApi.listOrchestrations(),
-    credentialApi.listCredentials(),
-  ]);
-  list.value = orch.items ?? [];
-  credentials.value = cr.credentials ?? [];
-  await Promise.all(
-    [...new Set(credentials.value.map((c) => c.data?.type))]
-      .filter(Boolean)
-      .map((t) => loadModelsForType(t as string)),
-  );
-  const first = list.value[0];
-  if (first && !current.value) select(first);
+  try {
+    const [orch, cr] = await Promise.all([
+      orchestrationApi.listOrchestrations(),
+      credentialApi.listCredentials(),
+    ]);
+    list.value = orch.items ?? [];
+    credentials.value = cr.credentials ?? [];
+    await Promise.all(
+      [...new Set(credentials.value.map((c) => c.data?.type))]
+        .filter(Boolean)
+        .map((t) => loadModelsForType(t as string)),
+    );
+    const first = list.value[0];
+    if (first && !current.value) select(first);
+  } catch (error) {
+    list.value = [];
+    credentials.value = [];
+    ElMessage.error(error instanceof Error ? error.message : '加载编排失败');
+  }
 }
 
 function select(orch: Orchestration) {

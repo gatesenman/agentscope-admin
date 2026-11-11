@@ -9,7 +9,7 @@ description = "Backend + CLI for the AgentScope Admin platform (agent lifecycle,
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "agentscope @ git+https://github.com/agentscope-ai/agentscope.git",
+  "agentscope @ git+https://github.com/agentscope-ai/agentscope.git@68f643db4d814d7a639b920c8a82ecb6b27bd39c",
   "fastapi==0.136.3",
   "uvicorn[standard]==0.48.0",
   "redis==8.0.0",

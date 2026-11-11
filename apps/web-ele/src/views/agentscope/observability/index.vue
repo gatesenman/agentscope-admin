@@ -100,6 +100,12 @@ async function load() {
     agents.value = ag.items ?? [];
     summary.value = s;
     recent.value = r.items ?? [];
+  } catch (error) {
+    analytics.value = undefined;
+    agents.value = [];
+    summary.value = undefined;
+    recent.value = [];
+    console.error(error);
   } finally {
     loading.value = false;
   }

@@ -325,9 +325,15 @@ function objectTypeOptions() {
 }
 
 onMounted(async () => {
-  await loadMeta();
-  resetForm();
-  await loadAgents();
+  try {
+    await loadMeta();
+    resetForm();
+    await loadAgents();
+  } catch (error) {
+    ElMessage.error(
+      error instanceof Error ? error.message : $t('agentscope.common.empty'),
+    );
+  }
 });
 
 // Silence unused import in some builds.

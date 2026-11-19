@@ -17,6 +17,7 @@ import { initSetupVbenForm } from './adapter/form';
 import App from './app.vue';
 import { setupRemotePreferencesSync } from './preferences-sync';
 import { router } from './router';
+import './views/agentscope/a11y.css';
 
 async function bootstrap(namespace: string) {
   // 初始化组件适配器

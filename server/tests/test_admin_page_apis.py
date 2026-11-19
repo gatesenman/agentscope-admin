@@ -138,3 +138,11 @@ def test_agentscope_pin_is_consistent() -> None:
     req_pins = pattern.findall(requirements)
     assert py_pins == [PINNED_SHA]
     assert req_pins == [PINNED_SHA]
+
+
+def test_admin_chrome_declares_focus_visible() -> None:
+    root = Path(__file__).resolve().parents[2]
+    css = (root / "apps/web-ele/src/views/agentscope/a11y.css").read_text()
+    bootstrap = (root / "apps/web-ele/src/bootstrap.ts").read_text()
+    assert ":focus-visible" in css
+    assert "views/agentscope/a11y.css" in bootstrap

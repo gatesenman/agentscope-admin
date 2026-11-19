@@ -14,6 +14,21 @@
 
 **中文** | [English](./README.md) | [日本語](./README.ja-JP.md)
 
+## 演示模式
+
+不必启动 Redis 或真实的 AgentScope，也可以让管理台接口返回示例数据：
+
+```bash
+cd server
+python -c "import uvicorn; from app.demo import app; uvicorn.run(app, host='127.0.0.1', port=8080)"
+```
+
+`GET /admin/status` 会返回连接状态横幅。真实后端不可用时，控制台应显示该提示。
+
+```bash
+cd server && pytest tests/test_demo_mode.py
+```
+
 ## 简介
 
 Vue Vben Admin 是 Vue Vben Admin 的升级版本。作为一个免费开源的中后台模板，它采用了最新的 Vue 3、Vite、TypeScript 等主流技术开发，开箱即用，可用于中后台前端开发，也适合学习参考。

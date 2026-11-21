@@ -63,3 +63,12 @@ vite.config.ts.*
 skills-lock.json
 .atomcode
 datalog
+
+# Additional hygiene
+Thumbs.db
+target/
+dist/
+logs/
+.venv/
+__pycache__/
+coverage/

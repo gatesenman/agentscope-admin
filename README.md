@@ -33,12 +33,16 @@ The UI is in Chinese. A static project wiki (Chinese) lives in [`wiki/`](wiki/RE
 
 ## Screenshots
 
-Captured locally with headless Chromium: the real backend (`uvicorn app.main:app`, Redis) plus `pnpm dev:ele`, after running `server/seed.sh` (enterprise-risk demo ontology, a demo knowledge base and a RAG workflow). No LLM credential was configured, so nothing that needs a model was run.
+The previous version of this section described six headless-Chromium captures (login, dashboard, seeded enterprise-risk ontology, RAG workflow editor, knowledge base) taken against a real backend (`uvicorn app.main:app`, Redis) plus `pnpm dev:ele` after `server/seed.sh`, with no LLM credential configured. **Those image files were never committed to this repository**, so the old caption-only table is removed to avoid implying that screenshots are present.
 
-| Login | Dashboard |
-| --- | --- |
-| **Ontology (seeded enterprise-risk model)** | **Workflow editor (seeded RAG workflow)** |
-| **Knowledge base** |  |
+Reserved paths for a future live capture (do not link them until the files exist):
+
+- `docs/screenshots/01-login.png`
+- `docs/screenshots/02-dashboard.png`
+- `docs/screenshots/03-ontology.png`
+- `docs/screenshots/04-workflow-or-kb.png`
+
+Captions must state the OS, version, that the data is the seed/demo set, and that the shots are not from a Windows installer (this repository has no published GitHub Release installer).
 
 ## Tech stack
 

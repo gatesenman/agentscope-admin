@@ -33,12 +33,16 @@
 
 ## 截图
 
-以下截图在本地用无头 Chromium 实拍：真实后端（`uvicorn app.main:app` + Redis）+ `pnpm dev:ele`，并先运行了 `server/seed.sh`（企业风险演示本体、演示知识库和 RAG 工作流）。未配置任何 LLM 凭证，因此没有运行需要模型的功能。
+此前本节文字描述了用无头 Chromium 实拍的登录、概览、企业风险演示本体、RAG 工作流编辑器和知识库（真实后端 `uvicorn app.main:app` + Redis，以及 `pnpm dev:ele`，并先运行 `server/seed.sh`；未配置 LLM 凭证）。**这些图片文件从未提交进本仓库**，因此删掉了只有标题、没有 `![]()` 的空表格，以免让人以为截图已经存在。
 
-| 登录 | 概览看板 |
-| --- | --- |
-| **本体管理（演示：企业风险本体）** | **工作流编辑器（演示：RAG 工作流）** |
-| **知识库** |  |
+预留路径（文件不存在时请不要写成图片链接，以免破链）：
+
+- `docs/screenshots/01-login.png`
+- `docs/screenshots/02-dashboard.png`
+- `docs/screenshots/03-ontology.png`
+- `docs/screenshots/04-workflow-or-kb.png`
+
+截图说明必须写明操作系统、版本、数据来自 seed/演示集，以及这些图不是 Windows 安装包安装后截取的（本仓库没有已发布的 GitHub Release 安装包）。
 
 ## 技术栈
 

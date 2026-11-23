@@ -33,12 +33,11 @@
 
 ## 截图
 
-以下截图在本地用无头 Chromium 实拍：真实后端（`uvicorn app.main:app` + Redis）+ `pnpm dev:ele`，并先运行了 `server/seed.sh`（企业风险演示本体、演示知识库和 RAG 工作流）。未配置任何 LLM 凭证，因此没有运行需要模型的功能。
+以下图片来自尚未合并的 `docs/bilingual-readme` 分支，已目视确认为真实管理后台界面，数据为 seed 演示本体（`enterprise-risk` / 企业风控本体）。它们不在默认分支上，也不是 Windows 安装包安装后的截图。本仓库没有已发布的 GitHub Release 安装包。该分支上的登录页截图未采用，因为密码框处于已填写状态。
 
-| 登录 | 概览看板 |
-| --- | --- |
-| **本体管理（演示：企业风险本体）** | **工作流编辑器（演示：RAG 工作流）** |
-| **知识库** |  |
+| 概览看板 | 本体管理（企业风控演示） | 工作流编辑器 |
+| --- | --- | --- |
+| ![概览](docs/screenshots/dashboard.png) | ![本体](docs/screenshots/ontology.png) | ![工作流](docs/screenshots/workflow-editor.png) |
 
 ## 技术栈
 

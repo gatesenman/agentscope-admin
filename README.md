@@ -33,12 +33,11 @@ The UI is in Chinese. A static project wiki (Chinese) lives in [`wiki/`](wiki/RE
 
 ## Screenshots
 
-Captured locally with headless Chromium: the real backend (`uvicorn app.main:app`, Redis) plus `pnpm dev:ele`, after running `server/seed.sh` (enterprise-risk demo ontology, a demo knowledge base and a RAG workflow). No LLM credential was configured, so nothing that needs a model was run.
+These images were recovered from the still-unmerged `docs/bilingual-readme` branch and visually confirmed as the real admin UI. They show the seeded enterprise-risk demo ontology (`enterprise-risk`). They are not on the default branch, are not post-Windows-install captures, and this repository has no published GitHub Release installer. The login screenshot from that branch was not reused, because the password field was filled.
 
-| Login | Dashboard |
-| --- | --- |
-| **Ontology (seeded enterprise-risk model)** | **Workflow editor (seeded RAG workflow)** |
-| **Knowledge base** |  |
+| Dashboard | Ontology (seeded enterprise-risk model) | Workflow editor |
+| --- | --- | --- |
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Ontology](docs/screenshots/ontology.png) | ![Workflow editor](docs/screenshots/workflow-editor.png) |
 
 ## Tech stack
 

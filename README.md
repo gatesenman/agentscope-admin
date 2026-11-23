@@ -33,16 +33,11 @@ The UI is in Chinese. A static project wiki (Chinese) lives in [`wiki/`](wiki/RE
 
 ## Screenshots
 
-The previous version of this section described six headless-Chromium captures (login, dashboard, seeded enterprise-risk ontology, RAG workflow editor, knowledge base) taken against a real backend (`uvicorn app.main:app`, Redis) plus `pnpm dev:ele` after `server/seed.sh`, with no LLM credential configured. **Those image files were never committed to this repository**, so the old caption-only table is removed to avoid implying that screenshots are present.
+These images were recovered from the still-unmerged `docs/bilingual-readme` branch and visually confirmed as the real admin UI. They show the seeded enterprise-risk demo ontology (`enterprise-risk`). They are not on the default branch, are not post-Windows-install captures, and this repository has no published GitHub Release installer. The login screenshot from that branch was not reused, because the password field was filled.
 
-Reserved paths for a future live capture (do not link them until the files exist):
-
-- `docs/screenshots/01-login.png`
-- `docs/screenshots/02-dashboard.png`
-- `docs/screenshots/03-ontology.png`
-- `docs/screenshots/04-workflow-or-kb.png`
-
-Captions must state the OS, version, that the data is the seed/demo set, and that the shots are not from a Windows installer (this repository has no published GitHub Release installer).
+| Dashboard | Ontology (seeded enterprise-risk model) | Workflow editor |
+| --- | --- | --- |
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Ontology](docs/screenshots/ontology.png) | ![Workflow editor](docs/screenshots/workflow-editor.png) |
 
 ## Tech stack
 

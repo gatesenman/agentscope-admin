@@ -33,16 +33,11 @@
 
 ## 截图
 
-此前本节文字描述了用无头 Chromium 实拍的登录、概览、企业风险演示本体、RAG 工作流编辑器和知识库（真实后端 `uvicorn app.main:app` + Redis，以及 `pnpm dev:ele`，并先运行 `server/seed.sh`；未配置 LLM 凭证）。**这些图片文件从未提交进本仓库**，因此删掉了只有标题、没有 `![]()` 的空表格，以免让人以为截图已经存在。
+以下图片来自尚未合并的 `docs/bilingual-readme` 分支，已目视确认为真实管理后台界面，数据为 seed 演示本体（`enterprise-risk` / 企业风控本体）。它们不在默认分支上，也不是 Windows 安装包安装后的截图。本仓库没有已发布的 GitHub Release 安装包。该分支上的登录页截图未采用，因为密码框处于已填写状态。
 
-预留路径（文件不存在时请不要写成图片链接，以免破链）：
-
-- `docs/screenshots/01-login.png`
-- `docs/screenshots/02-dashboard.png`
-- `docs/screenshots/03-ontology.png`
-- `docs/screenshots/04-workflow-or-kb.png`
-
-截图说明必须写明操作系统、版本、数据来自 seed/演示集，以及这些图不是 Windows 安装包安装后截取的（本仓库没有已发布的 GitHub Release 安装包）。
+| 概览看板 | 本体管理（企业风控演示） | 工作流编辑器 |
+| --- | --- | --- |
+| ![概览](docs/screenshots/dashboard.png) | ![本体](docs/screenshots/ontology.png) | ![工作流](docs/screenshots/workflow-editor.png) |
 
 ## 技术栈
 
